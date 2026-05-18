@@ -109,7 +109,7 @@ export default function UserHome() {
                                         
                                         {Array.isArray(row['tools']) && row['tools'].length > 0 ? (
                                             row['tools'].map((tool, index) => (
-                                                <NavLink key={index} to={`/${p.portfolio_id}/${row['org_id']}/${p.tools[tool].handle}`}>
+                                                <NavLink key={index} to={`/${p.portfolio_id}/${row['org_id']}/${tool}`}>
                                                     <Badge variant="outline" className="text-xxs">{p.tools[tool].name.substring(0, 10)}</Badge>
                                                 </NavLink>
                                             ))

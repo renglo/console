@@ -18,7 +18,10 @@ interface FormPutProps {
   selectedKey: string;
   selectedValue: unknown;
   refreshUp: () => void;
-  blueprint?: { fields?: Array<Record<string, unknown>> };
+  blueprint?: {
+    fields?: Array<Record<string, unknown>>;
+    rich?: Record<string, Record<string, unknown>>;
+  };
   path: string;
   method: string;
   /** When set, use with a header <Button type="submit" form={formId} /> */
@@ -50,6 +53,23 @@ function parseFieldOptions(
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof k !== "string" || !k) continue;
+    out[k] = typeof v === "string" ? v : v == null ? "" : String(v);
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function parseSourceOptions(
+  field: Record<string, unknown> | undefined,
+  blueprint: FormPutProps["blueprint"],
+): Record<string, string> | null {
+  const sourceRaw = field?.source;
+  if (typeof sourceRaw !== "string" || sourceRaw.length === 0) return null;
+  const sourceKey = sourceRaw.split(":")[0];
+  const richMap = blueprint?.rich?.[sourceKey];
+  if (!richMap || typeof richMap !== "object" || Array.isArray(richMap)) return null;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(richMap)) {
     if (typeof k !== "string" || !k) continue;
     out[k] = typeof v === "string" ? v : v == null ? "" : String(v);
   }
@@ -138,7 +158,7 @@ function buildEditState(
     return { kind: "json", text: JSON.stringify(v, null, 2) };
   }
 
-  const optionMap = parseFieldOptions(field);
+  const optionMap = parseFieldOptions(field) ?? parseSourceOptions(field, blueprint);
   if (optionMap) {
     let raw =
       selectedValue === null || selectedValue === undefined
