@@ -15,6 +15,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import TagsInput from "@/components/ui/tags-input";
 import {
   Select,
   SelectTrigger,
@@ -28,10 +29,10 @@ import {GlobalContext} from "@/components/console/global-context"
 
 interface FieldDefinition {
     name: string;
-    type: 'string' | 'number' | 'timestamp'; // Added 'timestamp'
+    type: 'string' | 'number' | 'timestamp' | 'array' | 'object'; // Added complex types
     label: string;
     required: boolean;
-    widget: 'text' | 'date' |'number' | 'select' | 'image' | 'select-cascade'; // Add more widget types as necessary
+    widget: 'text' | 'date' |'number' | 'select' | 'image' | 'select-cascade' | 'textarray' | 'json'; // Add more widget types as necessary
     hint?: string; // Optional hint for placeholders
     options?: Record<string, string> | Record<string, Record<string, string>>; // select: key-value; select-cascade: outerKey -> key-value
     source?: string; // select-cascade: name of field to watch for outer key
@@ -56,13 +57,43 @@ function generateSchema(fieldArray: FieldDefinition[]): z.ZodObject<any> {
   const formSchemaFields = fieldArray.reduce<Record<string, z.ZodTypeAny>>((schema, field) => {
     let validation: z.ZodTypeAny = z.string();
     if (field.type === "number") {
-      validation = z.number();
+      validation = z.preprocess(
+        (value) => {
+          if (value === "" || value === null || value === undefined) return undefined;
+          if (typeof value === "number") return value;
+          const parsed = Number(value);
+          return Number.isNaN(parsed) ? value : parsed;
+        },
+        z.number()
+      );
+    }
+    if (field.type === "array") {
+      validation = z.preprocess(
+        (value) => {
+          if (value === null || value === undefined || value === "") return [];
+          if (Array.isArray(value)) {
+            return value
+              .map((entry) => String(entry ?? "").trim())
+              .filter(Boolean);
+          }
+          if (typeof value === "string") {
+            return value
+              .split(",")
+              .map((entry) => entry.trim())
+              .filter(Boolean);
+          }
+          return value;
+        },
+        z.array(z.string())
+      );
     }
   
     if (field.required) {
-      validation = validation instanceof z.ZodString
-        ? validation.min(1, { message: `${field.label} is required.` })
-        : validation;
+      if (validation instanceof z.ZodString) {
+        validation = validation.min(1, { message: `${field.label} is required.` });
+      } else if (validation instanceof z.ZodArray) {
+        validation = validation.min(1, { message: `${field.label} needs at least one item.` });
+      }
     } else {
       validation = validation.optional();
     }
@@ -184,8 +215,17 @@ export default function FormPost({ refreshUp, blueprint, path, method }: FormPos
               type="number"
               placeholder={field.hint}
               {...formField}
-              onChange={(e) => formField.onChange(e.target.valueAsNumber)} // Convert to number
+              onChange={(e) => formField.onChange(e.target.value === "" ? undefined : e.target.valueAsNumber)}
               value={formField.value === undefined ? '' : formField.value} // Handle undefined values
+            />
+          );
+
+        case "textarray":
+          return (
+            <TagsInput
+              value={Array.isArray(formField.value) ? formField.value.map((v) => String(v)) : []}
+              onChange={(next) => formField.onChange(next)}
+              placeholder={field.hint || "Type and press Enter"}
             />
           );
     
@@ -293,8 +333,8 @@ export default function FormPost({ refreshUp, blueprint, path, method }: FormPos
               .filter(field => Number(field.layer) <= 0)
               .map(field => ({
                 ...field,
-                type: field.type as "string" | "number" | "timestamp",
-                widget: field.widget as "number" | "date" | "select" | "text" | "image" | "select-cascade",
+                type: field.type as "string" | "number" | "timestamp" | "array" | "object",
+                widget: field.widget as "number" | "date" | "select" | "text" | "image" | "select-cascade" | "textarray" | "json",
               }))
           );
 

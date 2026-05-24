@@ -1,5 +1,6 @@
 import {
     Copy,
+    GitBranch,
     Lock,
     MoreVertical,
 } from "lucide-react"
@@ -24,6 +25,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 import DialogPut from '@/components/console/dialog-put'
 import ImagePreview from "@/components/console/image-preview"
@@ -61,6 +70,14 @@ interface BlueprintField {
   widget?: string;
   hint?: string;
   label?: string;
+  source?: string;
+  edges?: [string, string];
+}
+
+interface EdgeDefinition {
+  edgeType: string;
+  outgoingAlias?: string;
+  incomingAlias?: string;
 }
 
 export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,portfolio,org,ring}: ItemPreviewProps) {
@@ -74,6 +91,11 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
     const [refresh, setRefresh] = useState(false);
     const [showCard, setShowCard] = useState(true);
     const [fieldsDictionary, setFieldsDictionary] = useState<FieldDictionary>({});
+    const [graphDialogOpen, setGraphDialogOpen] = useState(false);
+    const [graphLoading, setGraphLoading] = useState(false);
+    const [graphError, setGraphError] = useState("");
+    const [graphResponse, setGraphResponse] = useState<any>(null);
+    const [inferredEdgeDefinitions, setInferredEdgeDefinitions] = useState<EdgeDefinition[]>([]);
 
     const indexPathFields = useMemo(
         () => getBlueprintIndexPathFieldSet(blueprint),
@@ -142,6 +164,91 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
       
     };
 
+    const inferEdgeDefinitionsFromBlueprint = (): EdgeDefinition[] => {
+      if (blueprint?.enable_graph === false) {
+        return [];
+      }
+      const fromBlueprint = typeof blueprint?.name === "string" ? blueprint.name : ring;
+      const edgeMap = new Map<string, EdgeDefinition>();
+      for (const field of blueprint?.fields || []) {
+        if (!field || typeof field !== "object" || typeof field.source !== "string" || field.name === undefined || field.name === null) {
+          continue;
+        }
+        const sourceParts = field.source.split(":");
+        if (sourceParts.length !== 3 || sourceParts[1] !== "_id") {
+          continue;
+        }
+        const edgeType = `${fromBlueprint}:${String(field.name)}:${sourceParts[0]}:${sourceParts[1]}`;
+        const aliases = Array.isArray(field.edges) ? field.edges : [];
+        const current = edgeMap.get(edgeType) || { edgeType };
+        if (!current.outgoingAlias && typeof aliases[0] === "string") {
+          current.outgoingAlias = aliases[0];
+        }
+        if (!current.incomingAlias && typeof aliases[1] === "string") {
+          current.incomingAlias = aliases[1];
+        }
+        edgeMap.set(edgeType, current);
+      }
+      return Array.from(edgeMap.values());
+    };
+
+    const resolveAlias = (
+      edgeType: string,
+      perspective: "outgoing" | "incoming",
+      definitions: EdgeDefinition[],
+    ) => {
+      const definition = definitions.find((item) => item.edgeType === edgeType);
+      if (!definition) return edgeType;
+      return perspective === "outgoing"
+        ? (definition.outgoingAlias || edgeType)
+        : (definition.incomingAlias || edgeType);
+    };
+
+    const runGraphEdgeQuery = async () => {
+      if (!selectedId) return;
+      setGraphLoading(true);
+      setGraphError("");
+      setGraphResponse(null);
+      try {
+        const inferred = inferEdgeDefinitionsFromBlueprint();
+        setInferredEdgeDefinitions(inferred);
+        const url = `${import.meta.env.VITE_API_URL}/_graph/${portfolio}/${org}/node-edges`;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${sessionStorage.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            node_id: `${ring}/${selectedId}`,
+            edge_types: inferred.map((item) => item.edgeType),
+            limit: 100,
+          }),
+        });
+        const text = await response.text();
+        const body = text ? JSON.parse(text) : {};
+        if (!response.ok) {
+          throw new Error(body?.message || `Graph query failed (${response.status})`);
+        }
+        if (Array.isArray(body.outgoing)) {
+          body.outgoing = body.outgoing.map((edge: any) => ({
+            ...edge,
+            edge_label: resolveAlias(String(edge?.edge_type || ""), "outgoing", inferred),
+          }));
+        }
+        if (Array.isArray(body.incoming)) {
+          body.incoming = body.incoming.map((edge: any) => ({
+            ...edge,
+            edge_label: resolveAlias(String(edge?.edge_type || ""), "incoming", inferred),
+          }));
+        }
+        setGraphResponse(body);
+      } catch (err) {
+        setGraphError(err instanceof Error ? err.message : "Unknown graph query error");
+      } finally {
+        setGraphLoading(false);
+      }
+    };
 
     
     {/*
@@ -215,6 +322,56 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
             </CardDescription>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
+            <Dialog open={graphDialogOpen} onOpenChange={setGraphDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  disabled={!selectedId || !showCard}
+                  onClick={() => {
+                    void runGraphEdgeQuery();
+                  }}
+                >
+                  <GitBranch className="mr-1.5 h-3.5 w-3.5" />
+                  Graph Edges
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="flex max-h-[90vh] w-full max-w-5xl flex-col gap-3 overflow-hidden">
+                <DialogHeader className="shrink-0">
+                  <DialogTitle>Graph edges for current item</DialogTitle>
+                  <DialogDescription>
+                    Node: <code>{ring}/{selectedId || "N/A"}</code>
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="shrink-0 rounded-md border bg-muted/20 p-2 text-xs">
+                  <span className="font-medium">Inferred edge types:</span>{" "}
+                  {inferredEdgeDefinitions.length > 0
+                    ? inferredEdgeDefinitions
+                        .map((item) =>
+                          item.outgoingAlias || item.incomingAlias
+                            ? `${item.edgeType} (${item.outgoingAlias || item.edgeType} / ${item.incomingAlias || item.edgeType})`
+                            : item.edgeType,
+                        )
+                        .join(", ")
+                    : "none"}
+                </div>
+                {graphError ? (
+                  <div className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    {graphError}
+                  </div>
+                ) : null}
+                <div className="min-h-0 flex-1 overflow-auto rounded-md border bg-muted/20 p-3">
+                  <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+                    {graphLoading
+                      ? "Loading graph edges..."
+                      : graphResponse !== null
+                        ? JSON.stringify(graphResponse, null, 2)
+                        : "No graph query run yet."}
+                  </pre>
+                </div>
+              </DialogContent>
+            </Dialog>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

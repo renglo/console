@@ -63,11 +63,14 @@ export default function ToolSwitch({ refreshUp }: ToolSwitchProps) {
 
   const [open, setOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState(location.pathname.split('/')[3]);
+
+  useEffect(() => {
+    setSelectedTool(location.pathname.split('/')[3]);
+  }, [location.pathname]);
   
-  // Find tool by handle since selectedTool is the handle, not the ID
-  const findToolByName = (handle: string) => {
+  const findToolByName = (toolId: string) => {
     if (!tree || !('portfolios' in tree) || !tree.portfolios[p_portfolio]?.tools) return null;
-    return Object.values(tree.portfolios[p_portfolio].tools).find(tool => tool.handle === handle);
+    return tree.portfolios[p_portfolio].tools[toolId];
   };
   
   const [selectedToolName, setSelectedToolName] = useState(findToolByName(selectedTool)?.name || '');
@@ -79,7 +82,7 @@ export default function ToolSwitch({ refreshUp }: ToolSwitchProps) {
       return;
     }
     
-    const tool = Object.values(tree.portfolios[p_portfolio].tools).find(tool => tool.handle === selectedTool);
+    const tool = tree.portfolios[p_portfolio].tools[selectedTool];
     setSelectedToolName(tool?.name || '');
   }, [selectedTool, tree, p_portfolio]);
 
@@ -117,11 +120,11 @@ export default function ToolSwitch({ refreshUp }: ToolSwitchProps) {
                                 key={tool_id}
                                 value={tool_id}
                                 onSelect={() => {
-                                  setSelectedTool(tree.portfolios[p_portfolio].tools[tool_id].handle);
+                                  setSelectedTool(tool_id);
                                   setSelectedToolName(tree.portfolios[p_portfolio].tools[tool_id].name);
                                   setOpen(false);
                                   refreshUp();
-                                  navigate(`/${p_portfolio}/${p_org}/${tree.portfolios[p_portfolio].tools[tool_id].handle}`);
+                                  navigate(`/${p_portfolio}/${p_org}/${tool_id}`);
                                 }}
                               >
                                 <div className="flex items-center gap-4 flex-row">

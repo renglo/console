@@ -56,27 +56,28 @@ export default function ToolRouter() {
         return null;
     }
 
-    let tool_id
-    if(org == '_all'){ 
-        tool_id = Object.entries(tree.portfolios[portfolio]?.tools || {}).find(([_, toolData]) => toolData.handle === tool)?.[0];
-    }else{
-        //Translate tool handle into tool id
-        tool_id = tree.portfolios[portfolio]?.orgs[org]?.tools?.
-        find((toolId: string) => tree.portfolios[portfolio]?.tools[toolId]?.handle === tool);
-    }
-
-    console.log('Router : Portfolio/Org/Tool/Section/p1/p2/p3/Query',portfolio,org,tool_id,section,p1,p2,p3,queryParams);
-
     if (!tool) {
         return null;
     }
+
+    const portfolioTools = tree.portfolios[portfolio]?.tools || {};
+    const tool_id = portfolioTools[tool]
+        ? tool
+        : Object.entries(portfolioTools).find(([_, toolData]) => toolData.handle === tool)?.[0];
+    const tool_handle = tool_id ? portfolioTools[tool_id]?.handle : undefined;
+
+    console.log('Router : Portfolio/Org/Tool/Section/p1/p2/p3/Query',portfolio,org,tool_id,section,p1,p2,p3,queryParams);
 
     const handleNavigation = (path: string) => {
         navigate(path);
     };
 
     // Dynamically load the tool component
-    const ToolComponent = importTool(tool);
+    if (!tool_id || !tool_handle) {
+        return null;
+    }
+
+    const ToolComponent = importTool(tool_handle);
        
     return (
         <Suspense fallback={<div></div>}>

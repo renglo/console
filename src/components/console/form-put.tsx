@@ -13,12 +13,16 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { GlobalContext } from "@/components/console/global-context";
+import TagsInput from "@/components/ui/tags-input";
 
 interface FormPutProps {
   selectedKey: string;
   selectedValue: unknown;
   refreshUp: () => void;
-  blueprint?: { fields?: Array<Record<string, unknown>> };
+  blueprint?: {
+    fields?: Array<Record<string, unknown>>;
+    rich?: Record<string, Record<string, unknown>>;
+  };
   path: string;
   method: string;
   /** When set, use with a header <Button type="submit" form={formId} /> */
@@ -34,6 +38,7 @@ const ENUM_EMPTY_VALUE = "__renglo_enum_empty__";
 type EditState =
   | { kind: "string"; text: string; multiline: boolean }
   | { kind: "number"; text: string }
+  | { kind: "tagarray"; tags: string[] }
   | { kind: "boolean"; on: boolean }
   | { kind: "json"; text: string }
   | {
@@ -50,6 +55,23 @@ function parseFieldOptions(
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof k !== "string" || !k) continue;
+    out[k] = typeof v === "string" ? v : v == null ? "" : String(v);
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function parseSourceOptions(
+  field: Record<string, unknown> | undefined,
+  blueprint: FormPutProps["blueprint"],
+): Record<string, string> | null {
+  const sourceRaw = field?.source;
+  if (typeof sourceRaw !== "string" || sourceRaw.length === 0) return null;
+  const sourceKey = sourceRaw.split(":")[0];
+  const richMap = blueprint?.rich?.[sourceKey];
+  if (!richMap || typeof richMap !== "object" || Array.isArray(richMap)) return null;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(richMap)) {
     if (typeof k !== "string" || !k) continue;
     out[k] = typeof v === "string" ? v : v == null ? "" : String(v);
   }
@@ -118,6 +140,37 @@ function buildEditState(
     return { kind: "number", text: String(selectedValue) };
   }
 
+  if (typeStr === "array" && widget === "textarray") {
+    const toTags = (raw: unknown): string[] => {
+      if (raw === null || raw === undefined) return [];
+      if (Array.isArray(raw)) {
+        return raw
+          .map((entry) => String(entry ?? "").trim())
+          .filter((entry) => entry.length > 0);
+      }
+      if (typeof raw === "string") {
+        const trimmed = raw.trim();
+        if (!trimmed) return [];
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            return parsed
+              .map((entry) => String(entry ?? "").trim())
+              .filter((entry) => entry.length > 0);
+          }
+        } catch {
+          // Not JSON, fall back to comma parsing.
+        }
+        return trimmed
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0);
+      }
+      return [];
+    };
+    return { kind: "tagarray", tags: toTags(selectedValue) };
+  }
+
   if (typeStr === "array" || Array.isArray(selectedValue)) {
     const v = Array.isArray(selectedValue) ? selectedValue : [];
     return { kind: "json", text: JSON.stringify(v, null, 2) };
@@ -138,7 +191,7 @@ function buildEditState(
     return { kind: "json", text: JSON.stringify(v, null, 2) };
   }
 
-  const optionMap = parseFieldOptions(field);
+  const optionMap = parseFieldOptions(field) ?? parseSourceOptions(field, blueprint);
   if (optionMap) {
     let raw =
       selectedValue === null || selectedValue === undefined
@@ -181,6 +234,8 @@ function valueFromEditState(state: EditState, fieldKey: string): Record<string, 
       }
       return { [fieldKey]: n };
     }
+    case "tagarray":
+      return { [fieldKey]: state.tags };
     case "boolean":
       return { [fieldKey]: state.on };
     case "enum":
@@ -297,6 +352,8 @@ export default function FormPut({
       ? "Edit as JSON. Must be valid JSON (array or object)."
       : state.kind === "number"
         ? "Numeric value."
+        : state.kind === "tagarray"
+          ? "Press Enter, Tab, or comma to add tags."
         : state.kind === "boolean"
           ? "Toggle on or off."
           : state.kind === "enum"
@@ -397,6 +454,14 @@ export default function FormPut({
           step="any"
           value={state.text}
           onChange={(e) => setState({ kind: "number", text: e.target.value })}
+        />
+      )}
+
+      {state.kind === "tagarray" && (
+        <TagsInput
+          value={state.tags}
+          onChange={(next) => setState({ kind: "tagarray", tags: next })}
+          placeholder="Type and press Enter"
         />
       )}
 

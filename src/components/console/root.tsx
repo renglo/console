@@ -192,7 +192,7 @@ export default function Root() {
           </TooltipProvider>
         </nav>
       </aside>
-      <div className="flex flex-col sm:gap-1 sm:py-1 sm:pl-14">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden sm:gap-1 sm:py-1 sm:pl-14">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
           
           <SheetNav
@@ -347,7 +347,7 @@ export default function Root() {
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 min-h-0 overflow-auto">
           {!tree ? (
             <div className="flex items-center justify-center h-full">
               <span className="text-muted-foreground">Could not load authorization tree for this user.</span>

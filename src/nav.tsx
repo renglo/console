@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useContext } from 'react';
+import { GlobalContext } from "@/components/console/global-context";
 
 const importNav = (tool: string) => {
     // Use relative path from the current directory
@@ -22,21 +24,33 @@ interface SideNavProps {
     section?: string;
 }
 
+interface Portfolio {
+    tools: Record<string, Tool>;
+}
+
+interface Tool {
+    handle: string;
+}
+
 export default function SideNav({portfolio, org, tool, section}: SideNavProps) {  
     
     const navigate = useNavigate();
+    const context = useContext(GlobalContext);
     
-    if (!tool) {
+    if (!context || !tool) {
         return null;
     }
 
+    const { tree } = context as unknown as { tree: { portfolios: Record<string, Portfolio> } };
+    const portfolioTools = tree?.portfolios?.[portfolio]?.tools || {};
+    const toolHandle = portfolioTools[tool]?.handle || tool;
 
     const handleNavigation = (path: string) => {
         navigate(path);
       };
 
     // Dynamically load the tool component
-    const ToolNavComponent = importNav(tool);
+    const ToolNavComponent = importNav(toolHandle);
        
     return (
         <Suspense fallback={<div></div>}>          
