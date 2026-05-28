@@ -7,6 +7,8 @@ import {
   
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Card,
   CardContent,
@@ -62,6 +64,8 @@ interface FieldDictionary {
     widget?: string;
     hint?: string;
     label?: string;
+    cardinality?: string;
+    type?: string;
   };
 }
 
@@ -70,6 +74,8 @@ interface BlueprintField {
   widget?: string;
   hint?: string;
   label?: string;
+  cardinality?: string;
+  type?: string;
   source?: string;
   edges?: [string, string];
 }
@@ -162,6 +168,105 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
       setData({});
       setShowCard(false);
       
+    };
+
+    const renderFieldValue = (fieldInfo: FieldDictionary[string] | undefined, key: string, value: unknown) => {
+      const cardinality = String(fieldInfo?.cardinality ?? "single").toLowerCase();
+      const fieldType = String(fieldInfo?.type ?? "").toLowerCase();
+      const isMulti = cardinality === "multiple" || cardinality === "plural" || cardinality === "multi";
+      const isMultiText =
+        isMulti &&
+        (fieldInfo?.widget === "text" || fieldInfo?.widget === "textarea") &&
+        (fieldType === "string" || fieldType === "text");
+      const isJsonWidget = fieldInfo?.widget === "json";
+
+      if (isJsonWidget) {
+        const formatJson = (entry: unknown) => {
+          if (entry === null || entry === undefined) return "";
+          if (typeof entry === "string") {
+            const trimmed = entry.trim();
+            if (!trimmed) return "";
+            try {
+              return JSON.stringify(JSON.parse(trimmed), null, 2);
+            } catch {
+              return entry;
+            }
+          }
+          try {
+            return JSON.stringify(entry, null, 2);
+          } catch {
+            return String(entry);
+          }
+        };
+
+        if (isMulti) {
+          const values = Array.isArray(value) ? value : value == null ? [] : [value];
+          if (values.length === 0) {
+            return <span className="text-muted-foreground">—</span>;
+          }
+          return (
+            <div className="space-y-2">
+              {values.map((entry, index) => (
+                <Textarea
+                  key={`${key}-preview-json-${index}`}
+                  value={formatJson(entry)}
+                  readOnly
+                  disabled
+                  rows={8}
+                  className="bg-muted/20 font-mono text-xs leading-relaxed"
+                />
+              ))}
+            </div>
+          );
+        }
+
+        return (
+          <Textarea
+            value={formatJson(value)}
+            readOnly
+            disabled
+            rows={10}
+            className="bg-muted/20 font-mono text-xs leading-relaxed"
+          />
+        );
+      }
+
+      if (isMultiText) {
+        const values = Array.isArray(value)
+          ? value.map((entry) => String(entry ?? ""))
+          : value == null
+            ? []
+            : [String(value)];
+        if (values.length === 0) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        return (
+          <div className="space-y-2">
+            {values.map((entry, index) => (
+              fieldInfo?.widget === "textarea" ? (
+                <Textarea
+                  key={`${key}-preview-textarea-${index}`}
+                  value={entry}
+                  readOnly
+                  disabled
+                  rows={4}
+                  className="bg-muted/20"
+                />
+              ) : (
+                <Input
+                  key={`${key}-preview-${index}`}
+                  value={entry}
+                  readOnly
+                  disabled
+                  className="bg-muted/20"
+                />
+              )
+            ))}
+          </div>
+        );
+      }
+
+      return formatBlueprintFieldValue(value, key, blueprint);
     };
 
     const inferEdgeDefinitionsFromBlueprint = (): EdgeDefinition[] => {
@@ -407,7 +512,7 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
                       <div className="font-semibold">Item Details</div>
                       <ul className="mt-3 min-w-0 divide-y divide-border/60">
                       {Object.entries(fieldsDictionary).map(([key, fieldInfo]) => {
-                          const value = data[key];
+                          const value = data[key] ?? data?.attributes?.[key];
                           const isIndexKey = indexPathFields.has(key);
                           return fieldInfo?.widget !== 'image' && !key.startsWith('_') ? (
                               <li
@@ -452,7 +557,7 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
                                       isIndexKey && "text-muted-foreground",
                                     )}
                                   >
-                                    {formatBlueprintFieldValue(value, key, blueprint)}
+                                    {renderFieldValue(fieldInfo, key, value)}
                                     {isIndexKey && (
                                       <p className="mt-2 text-xs leading-snug text-muted-foreground">
                                         Index key: this value is part of{" "}

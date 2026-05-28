@@ -84,7 +84,7 @@ interface ColumnType {
 }
 
 interface RowType {
-  getValue: (key: string) => string;
+  getValue: (key: string) => unknown;
 }
 
 interface WidgetDefinition {
@@ -92,192 +92,71 @@ interface WidgetDefinition {
   c: ({ row }: { row: RowType }) => JSX.Element;
 }
 
-function TableWidgetDef(widget:'text'|'checkbox'|'address'|'currency_usd'|'date'|'file'|'hours'|'radio'|'images'|'items'|'location'|'email'|'phone'|'radio'|'select'|'textarea'|'textarray'|'url'|'video', label: string, name: string): ColumnDef<RowType, unknown> {
-
-  let w: WidgetDefinition = {
-    h: () => <></>,
-    c: () => <></>,
+function TableWidgetDef(widget: string, label: string, name: string): ColumnDef<RowType, unknown> {
+  const formatCellValue = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (Array.isArray(value)) return value.map((entry) => String(entry ?? "")).join(", ");
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
   };
 
-  switch (widget) {
-    case 'address':
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
+  if (widget === "currency_usd") {
+    const w: WidgetDefinition = {
+      h: () => <div className="text-center">{label}</div>,
+      c: ({ row }) => {
+        const raw = row.getValue(name);
+        const amount = Number(raw);
+        if (!Number.isFinite(amount)) {
+          return <div className="text-center font-medium">{formatCellValue(raw)}</div>;
         }
-        break;
+        const formatted = new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+        }).format(amount);
+        return <div className="text-center font-medium">{formatted}</div>;
+      },
+    };
 
-    case 'checkbox':   
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'currency_usd':   
-        w = {
-          h: () => <div className="text-center">{label}</div>,
-          c: ({ row }) => {
-              const amount = parseFloat(row.getValue(name));
-              const formatted = new Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "USD",
-              }).format(amount);
-              return <div className="text-center font-medium">{formatted}</div>
-          }
-        }
-        break;
-
-    case 'date':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'file':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'hours':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-    
-    case 'radio':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'images':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'items':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'location':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'email':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'phone':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-
-    case 'select':     
-        w = {
-          h: ({ column }) => <Button 
-            variant="ghost"
-            className="text-left"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-              >{label}</Button>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'text':     
-        w = {
-          h: ({ column }) => <Button 
-            variant="ghost"
-            className="text-left"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-              >{label}</Button>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'textarea':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'textarray':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'url':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-
-    case 'video':     
-        w = {
-          h: () => <div className="text-left">{label}</div>,
-          c: ({ row }) => (
-              <div className="capitalize">{row.getValue(name)}</div>
-              )
-        }
-        break;
-    default:
-      throw new Error(`Unsupported widget type: ${widget}`);
+    return {
+      accessorKey: name,
+      header: w.h,
+      cell: w.c,
+    };
   }
+
+  const sortableWidgets = new Set([
+    "text",
+    "select",
+    "date",
+    "time",
+    "datetime",
+    "timerange",
+    "daterange",
+  ]);
+  const isSortable = sortableWidgets.has(widget);
+
+  const w: WidgetDefinition = {
+    h: ({ column }) =>
+      isSortable ? (
+        <Button
+          variant="ghost"
+          className="text-left"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          {label}
+        </Button>
+      ) : (
+        <div className="text-left">{label}</div>
+      ),
+    c: ({ row }) => (
+      <div className="capitalize">{formatCellValue(row.getValue(name))}</div>
+    ),
+  };
 
   return {
     accessorKey: name,
@@ -309,18 +188,6 @@ interface Field {
 
 
 
-type WidgetType = 'address' | 'select' | 'textarea' | 'video' | 'text' | 'checkbox' | 'radio' | 'url' | 'email' | 'location' | 'date' | 'file' | 'currency_usd' | 'hours' | 'images' | 'items' | 'phone' | 'textarray';
-
-function isWidgetType(widget: string): widget is WidgetType {
-  return [
-      'address', 'select', 'textarea', 'video', 'text', 'checkbox', 'radio', 
-      'url', 'email', 'location', 'date', 'file', 'currency_usd', 'hours', 
-      'images', 'items', 'phone', 'textarray'
-  ].includes(widget);
-}
-
-
-
 function generateColumnDef(fields: Field[]): any[] {
   const output: any[] = [];
 
@@ -336,14 +203,8 @@ function generateColumnDef(fields: Field[]): any[] {
 
 
   for (const field of filteredFields) {
-
-    if (isWidgetType(field.widget)) {
-        const row = TableWidgetDef(field.widget, field.label, field.name);
-        output.push(row);
-    } else {
-        console.error(`Unsupported widget type: ${field.widget}`);
-    }
-    
+    const row = TableWidgetDef(field.widget, field.label, field.name);
+    output.push(row);
   }
 
   console.log('Output (GCD)')

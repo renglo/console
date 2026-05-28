@@ -226,9 +226,18 @@ export const replaceUUID = async (currentData: DataItem[], currentBlueprint: Blu
                 const value = updatedItem[key];
                 // Replace UUID with human-readable name
                 const sourceKey = currentBlueprint.sources?.[key];
-                updatedItem[key] = sourceKey && currentBlueprint.rich 
-                ? currentBlueprint.rich[sourceKey.split(':')[0]]?.[value] ?? value 
-                : value;
+                if (sourceKey && currentBlueprint.rich) {
+                    const richMap = currentBlueprint.rich[sourceKey.split(':')[0]] ?? {};
+                    if (Array.isArray(value)) {
+                        updatedItem[key] = value.map((entry) =>
+                            richMap[String(entry)] ?? entry
+                        );
+                    } else {
+                        updatedItem[key] = richMap[String(value)] ?? value;
+                    }
+                } else {
+                    updatedItem[key] = value;
+                }
 
                 //console.log(`Updated key:${key}`);
                 //console.log(sourceKey);

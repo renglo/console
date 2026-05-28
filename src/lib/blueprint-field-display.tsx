@@ -19,6 +19,24 @@ export function formatBlueprintFieldValue(
   if (value === undefined) {
     return <span className="text-muted-foreground">—</span>
   }
+  const richRing = blueprint?.sources?.[key]?.split(":")[0]
+  const richMap = richRing != null ? blueprint?.rich?.[richRing] : undefined
+
+  if (Array.isArray(value)) {
+    const resolvedArray =
+      richMap == null
+        ? value
+        : value.map((entry) => richMap[String(entry)] ?? entry)
+    if (resolvedArray.length === 0) {
+      return <span className="text-muted-foreground">—</span>
+    }
+    return (
+      <span className="break-words [overflow-wrap:anywhere]">
+        {resolvedArray.map((entry) => String(entry)).join(", ")}
+      </span>
+    )
+  }
+
   if (value !== null && typeof value === "object") {
     return (
       <pre className="max-h-56 overflow-auto rounded-md border bg-muted/40 p-2.5 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all [overflow-wrap:anywhere]">
@@ -27,11 +45,10 @@ export function formatBlueprintFieldValue(
     )
   }
 
-  const richRing = blueprint?.sources?.[key]?.split(":")[0]
   const resolved =
-    richRing != null && blueprint?.rich?.[richRing]
-      ? blueprint.rich[richRing][String(value)] ?? value
-      : value
+    richMap == null
+      ? value
+      : richMap[String(value)] ?? value
 
   const text = String(resolved)
   const trim = text.trim()

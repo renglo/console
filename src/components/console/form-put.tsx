@@ -1,19 +1,28 @@
 import { useState, useEffect, useContext, FormEvent } from "react";
+import { ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { useToast } from "@/components/ui/use-toast";
 import { GlobalContext } from "@/components/console/global-context";
 import TagsInput from "@/components/ui/tags-input";
+import { cn } from "@/lib/utils";
 
 interface FormPutProps {
   selectedKey: string;
@@ -35,12 +44,125 @@ interface FormPutProps {
 
 const ENUM_EMPTY_VALUE = "__renglo_enum_empty__";
 
+interface SearchableSelectProps {
+  options: Record<string, string>;
+  value: string | string[];
+  onChange: (value: string | string[]) => void;
+  multiple: boolean;
+  placeholder?: string;
+  allowEmpty?: boolean;
+  emptyLabel?: string;
+}
+
+function SearchableSelect({
+  options,
+  value,
+  onChange,
+  multiple,
+  placeholder,
+  allowEmpty = false,
+  emptyLabel = "None",
+}: SearchableSelectProps) {
+  const [open, setOpen] = useState(false);
+  const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
+  const selectedLabels = selectedValues
+    .map((entry) => options[entry] ?? entry)
+    .filter(Boolean);
+  const summary = multiple
+    ? selectedLabels.length > 0
+      ? selectedLabels.join(", ")
+      : (placeholder || "Select options")
+    : selectedLabels[0] || placeholder || "Select option";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between"
+        >
+          <span className="truncate text-left">{summary}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search options..." />
+          <CommandList>
+            <CommandEmpty>No options found.</CommandEmpty>
+            <CommandGroup>
+              {!multiple && allowEmpty && (
+                <CommandItem
+                  value={`__empty__ ${emptyLabel}`}
+                  onSelect={() => {
+                    onChange("");
+                    setOpen(false);
+                  }}
+                >
+                  <Checkbox checked={selectedValues.length === 0} className="pointer-events-none mr-2" />
+                  <span className="truncate text-muted-foreground">{emptyLabel}</span>
+                </CommandItem>
+              )}
+              {Object.entries(options).map(([optionValue, optionLabel]) => {
+                const checked = selectedValues.includes(optionValue);
+                return (
+                  <CommandItem
+                    key={optionValue}
+                    value={`${optionLabel} ${optionValue}`}
+                    onSelect={() => {
+                      if (multiple) {
+                        const next = checked
+                          ? selectedValues.filter((entry) => entry !== optionValue)
+                          : [...selectedValues, optionValue];
+                        onChange(next);
+                        return;
+                      }
+                      onChange(optionValue);
+                      setOpen(false);
+                    }}
+                  >
+                    <Checkbox checked={checked} className="pointer-events-none mr-2" />
+                    <span className={cn("truncate", !checked && "text-foreground")}>
+                      {optionLabel}
+                    </span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 type EditState =
   | { kind: "string"; text: string; multiline: boolean }
+  | { kind: "string-multi"; values: string[]; multiline: boolean }
+  | { kind: "datetime"; text: string }
+  | { kind: "datetime-multi"; values: string[] }
+  | { kind: "date"; text: string }
+  | { kind: "date-multi"; values: string[] }
+  | { kind: "time"; text: string }
+  | { kind: "time-multi"; values: string[] }
+  | { kind: "daterange"; text: string }
+  | { kind: "daterange-multi"; values: string[] }
+  | { kind: "timerange"; text: string }
+  | { kind: "timerange-multi"; values: string[] }
   | { kind: "number"; text: string }
   | { kind: "tagarray"; tags: string[] }
   | { kind: "boolean"; on: boolean }
   | { kind: "json"; text: string }
+  | { kind: "json-multi"; values: string[] }
+  | {
+      kind: "enum-multi";
+      valueKeys: string[];
+      options: Record<string, string>;
+      required: boolean;
+    }
   | {
       kind: "enum";
       valueKey: string;
@@ -110,6 +232,109 @@ function resolveField(
     | undefined;
 }
 
+function isMultipleCardinality(field: Record<string, unknown> | undefined): boolean {
+  const cardinality = typeof field?.cardinality === "string" ? field.cardinality : "single";
+  const normalized = cardinality.toLowerCase();
+  return normalized === "multiple" || normalized === "multi";
+}
+
+function formatJsonForEditor(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    try {
+      return JSON.stringify(JSON.parse(trimmed), null, 2);
+    } catch {
+      return value;
+    }
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function parseJsonForType(raw: string, fieldType?: string): unknown {
+  const normalizedFieldType = String(fieldType ?? "").toLowerCase();
+  if (normalizedFieldType === "string" || normalizedFieldType === "text") {
+    return raw;
+  }
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    if (normalizedFieldType === "array") return [];
+    if (normalizedFieldType === "object") return {};
+    return "";
+  }
+  const parsed = JSON.parse(trimmed) as unknown;
+  if (normalizedFieldType === "array" && !Array.isArray(parsed)) {
+    throw new Error("Expected JSON array.");
+  }
+  if (
+    normalizedFieldType === "object" &&
+    (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
+  ) {
+    throw new Error("Expected JSON object.");
+  }
+  return parsed;
+}
+
+function toDatetimeLocalValue(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const direct = raw.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  if (direct) return direct[1];
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function toDateValue(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const direct = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (direct) return direct[1];
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function toTimeValue(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const direct = raw.match(/(\d{2}:\d{2})/);
+  if (direct) return direct[1];
+  return "";
+}
+
+function parseRangeValue(raw: unknown): [string, string] {
+  const text = String(raw ?? "");
+  if (!text.trim()) return ["", ""];
+  if (text.includes(" - ")) {
+    const [start, end] = text.split(" - ", 2).map((entry) => entry.trim());
+    return [start || "", end || ""];
+  }
+  if (text.includes("|")) {
+    const [start, end] = text.split("|", 2).map((entry) => entry.trim());
+    return [start || "", end || ""];
+  }
+  return ["", ""];
+}
+
+function formatRangeValue(start: string, end: string): string {
+  if (!start && !end) return "";
+  return `${start || ""} - ${end || ""}`;
+}
+
 function buildEditState(
   selectedKey: string,
   selectedValue: unknown,
@@ -120,6 +345,11 @@ function buildEditState(
   const typeStr =
     typeof typeRaw === "string" ? typeRaw.toLowerCase() : String(typeRaw ?? "").toLowerCase();
   const widget = typeof field?.widget === "string" ? field.widget : "";
+  const isMultiple = isMultipleCardinality(field);
+  const toArray = (raw: unknown): unknown[] => {
+    if (raw === null || raw === undefined || raw === "") return [];
+    return Array.isArray(raw) ? raw : [raw];
+  };
 
   if (typeStr === "boolean" || typeof selectedValue === "boolean") {
     const on =
@@ -140,7 +370,7 @@ function buildEditState(
     return { kind: "number", text: String(selectedValue) };
   }
 
-  if (typeStr === "array" && widget === "textarray") {
+  if ((typeStr === "array" && widget === "tag") || (typeStr === "string" && widget === "tag")) {
     const toTags = (raw: unknown): string[] => {
       if (raw === null || raw === undefined) return [];
       if (Array.isArray(raw)) {
@@ -168,7 +398,113 @@ function buildEditState(
       }
       return [];
     };
-    return { kind: "tagarray", tags: toTags(selectedValue) };
+    const tags = toTags(selectedValue);
+    if (isMultiple) {
+      return { kind: "tagarray", tags };
+    }
+    return { kind: "string", text: tags[0] ?? "", multiline: false };
+  }
+
+  if (
+    isMultiple &&
+    (widget === "text" || widget === "textarea") &&
+    (typeStr === "string" || typeStr === "text")
+  ) {
+    const values = toArray(selectedValue).map((entry) => String(entry ?? ""));
+    return {
+      kind: "string-multi",
+      values: values.length > 0 ? values : [""],
+      multiline: widget === "textarea",
+    };
+  }
+
+  if (widget === "datetime" && isMultiple && (typeStr === "string" || typeStr === "text")) {
+    const values = toArray(selectedValue).map((entry) => String(entry ?? ""));
+    return { kind: "datetime-multi", values: values.length > 0 ? values : [""] };
+  }
+
+  if (widget === "datetime" && (typeStr === "string" || typeStr === "text")) {
+    return { kind: "datetime", text: String(selectedValue ?? "") };
+  }
+
+  if (widget === "date" && isMultiple && (typeStr === "string" || typeStr === "text")) {
+    const values = toArray(selectedValue).map((entry) => String(entry ?? ""));
+    return { kind: "date-multi", values: values.length > 0 ? values : [""] };
+  }
+
+  if (widget === "date" && (typeStr === "string" || typeStr === "text")) {
+    return { kind: "date", text: String(selectedValue ?? "") };
+  }
+
+  if (widget === "time" && isMultiple && (typeStr === "string" || typeStr === "text")) {
+    const values = toArray(selectedValue).map((entry) => String(entry ?? ""));
+    return { kind: "time-multi", values: values.length > 0 ? values : [""] };
+  }
+
+  if (widget === "time" && (typeStr === "string" || typeStr === "text")) {
+    return { kind: "time", text: String(selectedValue ?? "") };
+  }
+
+  if (widget === "daterange" && isMultiple && (typeStr === "string" || typeStr === "text")) {
+    const values = toArray(selectedValue).map((entry) => String(entry ?? ""));
+    return { kind: "daterange-multi", values: values.length > 0 ? values : [""] };
+  }
+
+  if (widget === "daterange" && (typeStr === "string" || typeStr === "text")) {
+    return { kind: "daterange", text: String(selectedValue ?? "") };
+  }
+
+  if (widget === "timerange" && isMultiple && (typeStr === "string" || typeStr === "text")) {
+    const values = toArray(selectedValue).map((entry) => String(entry ?? ""));
+    return { kind: "timerange-multi", values: values.length > 0 ? values : [""] };
+  }
+
+  if (widget === "timerange" && (typeStr === "string" || typeStr === "text")) {
+    return { kind: "timerange", text: String(selectedValue ?? "") };
+  }
+
+  if (widget === "json" && isMultiple) {
+    const values = toArray(selectedValue).map((entry) => formatJsonForEditor(entry));
+    return { kind: "json-multi", values: values.length > 0 ? values : [""] };
+  }
+
+  if (widget === "json") {
+    return { kind: "json", text: formatJsonForEditor(selectedValue) };
+  }
+
+  const optionMap = parseFieldOptions(field) ?? parseSourceOptions(field, blueprint);
+  if (optionMap) {
+    const required =
+      field?.required === true || field?.required === "true";
+    if (isMultiple) {
+      const rawValues = toArray(selectedValue)
+        .map((entry) => String(entry ?? ""))
+        .filter((entry) => entry.length > 0);
+      const valueKeys = rawValues.map((value) => resolveEnumStoredKey(value, optionMap));
+      const merged = { ...optionMap };
+      valueKeys.forEach((key) => {
+        if (key && !(key in merged)) {
+          merged[key] = key;
+        }
+      });
+      return { kind: "enum-multi", valueKeys, options: merged, required };
+    }
+
+    let raw =
+      selectedValue === null || selectedValue === undefined
+        ? ""
+        : String(selectedValue);
+    if (!raw) {
+      const def = field?.default;
+      if (typeof def === "string" && def) raw = def;
+    }
+    const valueKey = resolveEnumStoredKey(raw, optionMap);
+    const merged = { ...optionMap };
+    if (valueKey && !(valueKey in merged)) {
+      merged[valueKey] = valueKey;
+    }
+    const allowEmpty = !required;
+    return { kind: "enum", valueKey, options: merged, allowEmpty };
   }
 
   if (typeStr === "array" || Array.isArray(selectedValue)) {
@@ -191,25 +527,15 @@ function buildEditState(
     return { kind: "json", text: JSON.stringify(v, null, 2) };
   }
 
-  const optionMap = parseFieldOptions(field) ?? parseSourceOptions(field, blueprint);
-  if (optionMap) {
-    let raw =
-      selectedValue === null || selectedValue === undefined
-        ? ""
-        : String(selectedValue);
-    if (!raw) {
-      const def = field?.default;
-      if (typeof def === "string" && def) raw = def;
-    }
-    const valueKey = resolveEnumStoredKey(raw, optionMap);
-    const merged = { ...optionMap };
-    if (valueKey && !(valueKey in merged)) {
-      merged[valueKey] = valueKey;
-    }
-    const required =
-      field?.required === true || field?.required === "true";
-    const allowEmpty = !required;
-    return { kind: "enum", valueKey, options: merged, allowEmpty };
+  if (isMultiple && typeStr === "string") {
+    const tags = toArray(selectedValue)
+      .map((entry) => String(entry ?? "").trim())
+      .filter((entry) => entry.length > 0);
+    return { kind: "tagarray", tags };
+  }
+
+  if (isMultiple) {
+    return { kind: "json", text: JSON.stringify(toArray(selectedValue), null, 2) };
   }
 
   const multiline = widget === "textarea";
@@ -219,10 +545,36 @@ function buildEditState(
   return { kind: "string", text: String(selectedValue), multiline };
 }
 
-function valueFromEditState(state: EditState, fieldKey: string): Record<string, unknown> {
+function valueFromEditState(
+  state: EditState,
+  fieldKey: string,
+  fieldType?: string,
+): Record<string, unknown> {
   switch (state.kind) {
     case "string":
       return { [fieldKey]: state.text };
+    case "string-multi":
+      return { [fieldKey]: state.values.map((entry) => String(entry).trim()) };
+    case "datetime":
+      return { [fieldKey]: state.text };
+    case "datetime-multi":
+      return { [fieldKey]: state.values.map((entry) => String(entry).trim()) };
+    case "date":
+      return { [fieldKey]: state.text };
+    case "date-multi":
+      return { [fieldKey]: state.values.map((entry) => String(entry).trim()) };
+    case "time":
+      return { [fieldKey]: state.text };
+    case "time-multi":
+      return { [fieldKey]: state.values.map((entry) => String(entry).trim()) };
+    case "daterange":
+      return { [fieldKey]: state.text };
+    case "daterange-multi":
+      return { [fieldKey]: state.values.map((entry) => String(entry).trim()) };
+    case "timerange":
+      return { [fieldKey]: state.text };
+    case "timerange-multi":
+      return { [fieldKey]: state.values.map((entry) => String(entry).trim()) };
     case "number": {
       const t = state.text.trim();
       if (t === "") {
@@ -240,12 +592,31 @@ function valueFromEditState(state: EditState, fieldKey: string): Record<string, 
       return { [fieldKey]: state.on };
     case "enum":
       return { [fieldKey]: enumOptionKeyToStoredValue(state.valueKey) };
+    case "enum-multi":
+      return {
+        [fieldKey]: state.valueKeys.map((valueKey) =>
+          enumOptionKeyToStoredValue(valueKey),
+        ),
+      };
     case "json": {
       try {
-        const parsed = JSON.parse(state.text) as unknown;
+        const parsed = parseJsonForType(state.text, fieldType);
         return { [fieldKey]: parsed };
       } catch {
         throw new Error("Invalid JSON — check brackets, commas, and quotes.");
+      }
+    }
+    case "json-multi": {
+      try {
+        const parsed = state.values
+          .filter((entry) => {
+            if (fieldType === "string" || fieldType === "text") return true;
+            return entry.trim().length > 0;
+          })
+          .map((entry) => parseJsonForType(entry, fieldType));
+        return { [fieldKey]: parsed };
+      } catch {
+        throw new Error("Invalid JSON in one or more entries.");
       }
     }
   }
@@ -278,6 +649,7 @@ export default function FormPut({
     (typeof field?.label === "string" && field.label) || selectedKey;
   const typeHint =
     typeof field?.type === "string" ? field.type : undefined;
+  const fieldType = typeof field?.type === "string" ? field.type : "";
 
   useEffect(() => {
     setState(buildEditState(selectedKey, selectedValue, blueprint));
@@ -298,10 +670,30 @@ export default function FormPut({
       });
       return;
     }
+    if (state.kind === "enum-multi" && state.required && state.valueKeys.length === 0) {
+      toast({
+        title: "Required",
+        description: "Please select at least one value for this field.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (
+      state.kind === "json-multi" &&
+      (field?.required === true || field?.required === "true") &&
+      state.values.every((entry) => entry.trim() === "")
+    ) {
+      toast({
+        title: "Required",
+        description: "Please provide at least one JSON entry for this field.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     let payload: Record<string, unknown>;
     try {
-      payload = valueFromEditState(state, selectedKey);
+      payload = valueFromEditState(state, selectedKey, fieldType);
     } catch (e) {
       toast({
         title: "Invalid value",
@@ -350,6 +742,32 @@ export default function FormPut({
   const hint =
     state.kind === "json"
       ? "Edit as JSON. Must be valid JSON (array or object)."
+      : state.kind === "json-multi"
+        ? "Add or remove JSON entries. Each entry must be valid JSON."
+      : state.kind === "string-multi"
+        ? state.multiline
+          ? "Add or remove text blocks."
+          : "Add or remove text values."
+      : state.kind === "datetime"
+        ? "Pick date/time or edit the generated text directly."
+      : state.kind === "datetime-multi"
+        ? "Add or remove date/time values; each value is editable as text."
+      : state.kind === "date"
+        ? "Pick a date or edit the generated text directly."
+      : state.kind === "date-multi"
+        ? "Add or remove dates; each value is editable as text."
+      : state.kind === "time"
+        ? "Pick a time or edit the generated text directly."
+      : state.kind === "time-multi"
+        ? "Add or remove times; each value is editable as text."
+      : state.kind === "daterange"
+        ? "Pick start/end dates or edit the generated range text directly."
+      : state.kind === "daterange-multi"
+        ? "Add or remove date ranges; each range is editable as text."
+      : state.kind === "timerange"
+        ? "Pick start/end times or edit the generated range text directly."
+      : state.kind === "timerange-multi"
+        ? "Add or remove time ranges; each range is editable as text."
       : state.kind === "number"
         ? "Numeric value."
         : state.kind === "tagarray"
@@ -358,6 +776,8 @@ export default function FormPut({
           ? "Toggle on or off."
           : state.kind === "enum"
             ? "Choose one of the predefined values."
+            : state.kind === "enum-multi"
+              ? "Choose one or more predefined values."
             : undefined;
 
   return (
@@ -409,41 +829,466 @@ export default function FormPut({
           />
         ))}
 
+      {state.kind === "string-multi" && (
+        <div className="space-y-2">
+          {state.values.map((value, index) => (
+            <div key={`${selectedKey}-${index}`} className="flex gap-2">
+              {state.multiline ? (
+                <Textarea
+                  id={`put-${selectedKey}-${index}`}
+                  name={selectedKey}
+                  value={value}
+                  rows={4}
+                  onChange={(e) => {
+                    const next = [...state.values];
+                    next[index] = e.target.value;
+                    setState({ kind: "string-multi", values: next, multiline: true });
+                  }}
+                />
+              ) : (
+                <Input
+                  id={`put-${selectedKey}-${index}`}
+                  name={selectedKey}
+                  value={value}
+                  onChange={(e) => {
+                    const next = [...state.values];
+                    next[index] = e.target.value;
+                    setState({ kind: "string-multi", values: next, multiline: false });
+                  }}
+                />
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const next = state.values.filter((_, currentIndex) => currentIndex !== index);
+                  setState({
+                    kind: "string-multi",
+                    values: next.length ? next : [""],
+                    multiline: state.multiline,
+                  });
+                }}
+              >
+                -
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              setState({
+                kind: "string-multi",
+                values: [...state.values, ""],
+                multiline: state.multiline,
+              })
+            }
+          >
+            Add value
+          </Button>
+        </div>
+      )}
+
+      {state.kind === "datetime" && (
+        <div className="space-y-2">
+          <Input
+            id={`put-${selectedKey}-datetime`}
+            type="datetime-local"
+            value={toDatetimeLocalValue(state.text)}
+            onChange={(e) => setState({ kind: "datetime", text: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground break-all">
+            {state.text || "YYYY-MM-DDTHH:mm"}
+          </p>
+        </div>
+      )}
+
+      {state.kind === "datetime-multi" && (
+        <div className="space-y-2">
+          {state.values.map((value, index) => (
+            <div key={`${selectedKey}-datetime-${index}`} className="space-y-2">
+              <Input
+                id={`put-${selectedKey}-datetime-${index}`}
+                type="datetime-local"
+                value={toDatetimeLocalValue(value)}
+                onChange={(e) => {
+                  const next = [...state.values];
+                  next[index] = e.target.value;
+                  setState({ kind: "datetime-multi", values: next });
+                }}
+              />
+              <p className="text-xs text-muted-foreground break-all">
+                {value || "YYYY-MM-DDTHH:mm"}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const next = state.values.filter((_, currentIndex) => currentIndex !== index);
+                  setState({ kind: "datetime-multi", values: next.length ? next : [""] });
+                }}
+              >
+                -
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setState({ kind: "datetime-multi", values: [...state.values, ""] })}
+          >
+            Add value
+          </Button>
+        </div>
+      )}
+
+      {state.kind === "date" && (
+        <div className="space-y-2">
+          <Input
+            id={`put-${selectedKey}-date`}
+            type="date"
+            value={toDateValue(state.text)}
+            onChange={(e) => setState({ kind: "date", text: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground break-all">
+            {state.text || "YYYY-MM-DD"}
+          </p>
+        </div>
+      )}
+
+      {state.kind === "date-multi" && (
+        <div className="space-y-2">
+          {state.values.map((value, index) => (
+            <div key={`${selectedKey}-date-${index}`} className="space-y-2">
+              <Input
+                id={`put-${selectedKey}-date-${index}`}
+                type="date"
+                value={toDateValue(value)}
+                onChange={(e) => {
+                  const next = [...state.values];
+                  next[index] = e.target.value;
+                  setState({ kind: "date-multi", values: next });
+                }}
+              />
+              <p className="text-xs text-muted-foreground break-all">
+                {value || "YYYY-MM-DD"}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const next = state.values.filter((_, currentIndex) => currentIndex !== index);
+                  setState({ kind: "date-multi", values: next.length ? next : [""] });
+                }}
+              >
+                -
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setState({ kind: "date-multi", values: [...state.values, ""] })}
+          >
+            Add value
+          </Button>
+        </div>
+      )}
+
+      {state.kind === "time" && (
+        <div className="space-y-2">
+          <Input
+            id={`put-${selectedKey}-time`}
+            type="time"
+            value={toTimeValue(state.text)}
+            onChange={(e) => setState({ kind: "time", text: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground break-all">
+            {state.text || "HH:mm"}
+          </p>
+        </div>
+      )}
+
+      {state.kind === "time-multi" && (
+        <div className="space-y-2">
+          {state.values.map((value, index) => (
+            <div key={`${selectedKey}-time-${index}`} className="space-y-2">
+              <Input
+                id={`put-${selectedKey}-time-${index}`}
+                type="time"
+                value={toTimeValue(value)}
+                onChange={(e) => {
+                  const next = [...state.values];
+                  next[index] = e.target.value;
+                  setState({ kind: "time-multi", values: next });
+                }}
+              />
+              <p className="text-xs text-muted-foreground break-all">
+                {value || "HH:mm"}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const next = state.values.filter((_, currentIndex) => currentIndex !== index);
+                  setState({ kind: "time-multi", values: next.length ? next : [""] });
+                }}
+              >
+                -
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setState({ kind: "time-multi", values: [...state.values, ""] })}
+          >
+            Add value
+          </Button>
+        </div>
+      )}
+
+      {state.kind === "daterange" && (
+        <div className="space-y-2">
+          {(() => {
+            const [startRaw, endRaw] = parseRangeValue(state.text);
+            const start = toDateValue(startRaw);
+            const end = toDateValue(endRaw);
+            return (
+              <>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Input
+                    id={`put-${selectedKey}-daterange-start`}
+                    type="date"
+                    value={start}
+                    onChange={(e) =>
+                      setState({
+                        kind: "daterange",
+                        text: formatRangeValue(e.target.value, end),
+                      })
+                    }
+                  />
+                  <Input
+                    id={`put-${selectedKey}-daterange-end`}
+                    type="date"
+                    value={end}
+                    onChange={(e) =>
+                      setState({
+                        kind: "daterange",
+                        text: formatRangeValue(start, e.target.value),
+                      })
+                    }
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground break-all">
+                  {state.text || "YYYY-MM-DD - YYYY-MM-DD"}
+                </p>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {state.kind === "daterange-multi" && (
+        <div className="space-y-2">
+          {state.values.map((value, index) => {
+            const [startRaw, endRaw] = parseRangeValue(value);
+            const start = toDateValue(startRaw);
+            const end = toDateValue(endRaw);
+            return (
+              <div key={`${selectedKey}-daterange-${index}`} className="space-y-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Input
+                    id={`put-${selectedKey}-daterange-start-${index}`}
+                    type="date"
+                    value={start}
+                    onChange={(e) => {
+                      const next = [...state.values];
+                      next[index] = formatRangeValue(e.target.value, end);
+                      setState({ kind: "daterange-multi", values: next });
+                    }}
+                  />
+                  <Input
+                    id={`put-${selectedKey}-daterange-end-${index}`}
+                    type="date"
+                    value={end}
+                    onChange={(e) => {
+                      const next = [...state.values];
+                      next[index] = formatRangeValue(start, e.target.value);
+                      setState({ kind: "daterange-multi", values: next });
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground break-all">
+                  {value || "YYYY-MM-DD - YYYY-MM-DD"}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const next = state.values.filter((_, currentIndex) => currentIndex !== index);
+                    setState({ kind: "daterange-multi", values: next.length ? next : [""] });
+                  }}
+                >
+                  -
+                </Button>
+              </div>
+            );
+          })}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setState({ kind: "daterange-multi", values: [...state.values, ""] })}
+          >
+            Add value
+          </Button>
+        </div>
+      )}
+
+      {state.kind === "timerange" && (
+        <div className="space-y-2">
+          {(() => {
+            const [startRaw, endRaw] = parseRangeValue(state.text);
+            const start = toTimeValue(startRaw);
+            const end = toTimeValue(endRaw);
+            return (
+              <>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Input
+                    id={`put-${selectedKey}-timerange-start`}
+                    type="time"
+                    value={start}
+                    onChange={(e) =>
+                      setState({
+                        kind: "timerange",
+                        text: formatRangeValue(e.target.value, end),
+                      })
+                    }
+                  />
+                  <Input
+                    id={`put-${selectedKey}-timerange-end`}
+                    type="time"
+                    value={end}
+                    onChange={(e) =>
+                      setState({
+                        kind: "timerange",
+                        text: formatRangeValue(start, e.target.value),
+                      })
+                    }
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground break-all">
+                  {state.text || "HH:mm - HH:mm"}
+                </p>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {state.kind === "timerange-multi" && (
+        <div className="space-y-2">
+          {state.values.map((value, index) => {
+            const [startRaw, endRaw] = parseRangeValue(value);
+            const start = toTimeValue(startRaw);
+            const end = toTimeValue(endRaw);
+            return (
+              <div key={`${selectedKey}-timerange-${index}`} className="space-y-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Input
+                    id={`put-${selectedKey}-timerange-start-${index}`}
+                    type="time"
+                    value={start}
+                    onChange={(e) => {
+                      const next = [...state.values];
+                      next[index] = formatRangeValue(e.target.value, end);
+                      setState({ kind: "timerange-multi", values: next });
+                    }}
+                  />
+                  <Input
+                    id={`put-${selectedKey}-timerange-end-${index}`}
+                    type="time"
+                    value={end}
+                    onChange={(e) => {
+                      const next = [...state.values];
+                      next[index] = formatRangeValue(start, e.target.value);
+                      setState({ kind: "timerange-multi", values: next });
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground break-all">
+                  {value || "HH:mm - HH:mm"}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const next = state.values.filter((_, currentIndex) => currentIndex !== index);
+                    setState({ kind: "timerange-multi", values: next.length ? next : [""] });
+                  }}
+                >
+                  -
+                </Button>
+              </div>
+            );
+          })}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setState({ kind: "timerange-multi", values: [...state.values, ""] })}
+          >
+            Add value
+          </Button>
+        </div>
+      )}
+
       {state.kind === "enum" && (
-        <Select
-          value={
-            state.valueKey === "" && state.allowEmpty
-              ? ENUM_EMPTY_VALUE
-              : state.valueKey || undefined
-          }
-          onValueChange={(v) => {
-            const valueKey = v === ENUM_EMPTY_VALUE ? "" : v;
+        <SearchableSelect
+          options={state.options}
+          value={state.valueKey}
+          onChange={(next) => {
+            const nextValue = String(next);
             setState({
               kind: "enum",
-              valueKey,
+              valueKey: nextValue === ENUM_EMPTY_VALUE ? "" : nextValue,
               options: state.options,
               allowEmpty: state.allowEmpty,
             });
           }}
-        >
-          <SelectTrigger
-            id={`put-${selectedKey}`}
-            className="w-full"
-            aria-label={label}
-          >
-            <SelectValue placeholder="Select…" />
-          </SelectTrigger>
-          <SelectContent position="popper" className="max-h-72">
-            {state.allowEmpty && (
-              <SelectItem value={ENUM_EMPTY_VALUE}>— None —</SelectItem>
-            )}
-            {Object.entries(state.options).map(([k, optLabel]) => (
-              <SelectItem key={k} value={k}>
-                {optLabel}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          multiple={false}
+          placeholder="Select..."
+          allowEmpty={state.allowEmpty}
+          emptyLabel="None"
+        />
+      )}
+
+      {state.kind === "enum-multi" && (
+        <SearchableSelect
+          options={state.options}
+          value={state.valueKeys}
+          onChange={(next) =>
+            setState({
+              kind: "enum-multi",
+              valueKeys: Array.isArray(next) ? next.map((entry) => String(entry)) : [String(next)],
+              options: state.options,
+              required: state.required,
+            })
+          }
+          multiple
+          placeholder="Select options..."
+        />
       )}
 
       {state.kind === "number" && (
@@ -488,6 +1333,47 @@ export default function FormPut({
           className="font-mono text-xs leading-relaxed"
           spellCheck={false}
         />
+      )}
+
+      {state.kind === "json-multi" && (
+        <div className="space-y-2">
+          {state.values.map((value, index) => (
+            <div key={`${selectedKey}-json-${index}`} className="space-y-2">
+              <Textarea
+                id={`put-${selectedKey}-json-${index}`}
+                name={selectedKey}
+                value={value}
+                onChange={(e) => {
+                  const next = [...state.values];
+                  next[index] = e.target.value;
+                  setState({ kind: "json-multi", values: next });
+                }}
+                rows={10}
+                className="font-mono text-xs leading-relaxed"
+                spellCheck={false}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const next = state.values.filter((_, currentIndex) => currentIndex !== index);
+                  setState({ kind: "json-multi", values: next.length ? next : [""] });
+                }}
+              >
+                -
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setState({ kind: "json-multi", values: [...state.values, ""] })}
+          >
+            Add value
+          </Button>
+        </div>
       )}
 
       {!hideSubmitButton && <Button type="submit">Save</Button>}

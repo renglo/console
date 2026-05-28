@@ -13,7 +13,7 @@ const env = loadEnv(mode, __dirname, "");
 const bootstrapExtensions =
   env.VITE_EXTENSIONS ||
   env.VITE_BOOTSTRAP_PLUGINS ||
-  "data,schd"; // fallback default
+  "data,schd,knowledge"; // fallback default
 
 // Parse the extensions list
 const extensions = bootstrapExtensions

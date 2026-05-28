@@ -31,7 +31,9 @@ function metaForField(
     | undefined
   const label = typeof field?.label === "string" ? field.label : null
   const typeStr = typeof field?.type === "string" ? field.type : null
-  return { label, typeStr }
+  const cardinalityStr =
+    typeof field?.cardinality === "string" ? field.cardinality : null
+  return { label, typeStr, cardinalityStr }
 }
 
 export default function DialogPutWide({
@@ -46,13 +48,15 @@ export default function DialogPutWide({
 }: DialogPutProps) {
   const [open, setOpen] = useState(false)
   const formId = useId().replace(/:/g, "")
-  const { label: blueprintLabel, typeStr } = metaForField(
+  const { label: blueprintLabel, typeStr, cardinalityStr } = metaForField(
     blueprint,
     selectedKey,
   )
   const headerTitle = blueprintLabel || title
   const subtitleParts = [
-    typeStr ? `Type: ${typeStr}` : null,
+    typeStr
+      ? `Type: ${typeStr}${cardinalityStr ? ` (${cardinalityStr})` : ""}`
+      : null,
     instructions?.trim() || null,
   ].filter(Boolean)
 
@@ -75,7 +79,7 @@ export default function DialogPutWide({
         </Button>
       </DialogTrigger>
       <DialogContent className="flex max-h-[90vh] w-[calc(100vw-1rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:w-full">
-        <DialogHeader className="shrink-0 space-y-0 border-b px-4 py-3 pr-14 text-left">
+        <DialogHeader className="sticky top-0 z-20 shrink-0 space-y-0 border-b bg-background px-4 py-3 pr-14 text-left">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1 space-y-1">
               <DialogTitle className="text-base font-semibold leading-snug">
