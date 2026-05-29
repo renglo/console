@@ -42,6 +42,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import {GlobalContext} from "@/components/console/global-context"
 import { cn } from "@/lib/utils";
+import { parseBlueprintSourceSpec } from "@/lib/console_utils";
 
 
 interface FieldDefinition {
@@ -53,7 +54,7 @@ interface FieldDefinition {
     cardinality?: 'single' | 'singular' | 'multiple' | string;
     hint?: string; // Optional hint for placeholders
     options?: Record<string, string> | Record<string, Record<string, string>>; // select: key-value; select-cascade: outerKey -> key-value
-    source?: string; // select-cascade: name of field to watch for outer key
+    source?: unknown; // legacy string or new source object
     [key: string]: any; // Additional properties
 }
 
@@ -394,7 +395,7 @@ interface Field {
   order: string;
   required: boolean;
   semantic: string;
-  source: string;
+  source: unknown;
   type: string;
   widget: string;
   options?: FieldOption | Record<string, Record<string, string>>; // select: FieldOption; select-cascade: dict of dicts
@@ -480,7 +481,8 @@ export default function FormPost({
             return acc;
           }, {});
         }
-        const richKey = (field.source ?? "").split(":")[0];
+        const sourceSpec = parseBlueprintSourceSpec(field.source);
+        const richKey = sourceSpec?.target ?? "";
         return Rich[richKey] ?? {};
       };
 
@@ -995,9 +997,12 @@ export default function FormPost({
                 ) : (
                   // Else, check if field.rich[field.source.split(':')[1]] exists
                   
-                  Rich[(field.source ?? '').split(':')[0]] ? (
+                  (() => {
+                    const sourceSpec = parseBlueprintSourceSpec(field.source);
+                    const richKey = sourceSpec?.target ?? "";
+                    return Rich[richKey] ? (
                     <>
-                      {Object.entries(Rich[(field.source ?? '').split(':')[0]]).map(([value, label]) => (
+                      {Object.entries(Rich[richKey]).map(([value, label]) => (
                         <SelectItem key={value} value={value}>
                           {label}
                         </SelectItem>
@@ -1005,7 +1010,8 @@ export default function FormPost({
                     </>
                   ) : (
                     <SelectItem key='x' value='0'>No options</SelectItem>
-                  )
+                  );
+                  })()
   
                   
                 )}
@@ -1018,7 +1024,7 @@ export default function FormPost({
           );
 
         case "select-cascade": {
-          const sourceName = field.source ?? '';
+          const sourceName = typeof field.source === "string" ? field.source : "";
           const sourceValue = form.watch(sourceName) as string | undefined;
           const cascadeOptions = field.options as Record<string, Record<string, string>> | undefined;
           const innerOptions: Record<string, string> = (sourceValue && cascadeOptions && cascadeOptions[sourceValue])

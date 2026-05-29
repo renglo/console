@@ -23,6 +23,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { GlobalContext } from "@/components/console/global-context";
 import TagsInput from "@/components/ui/tags-input";
 import { cn } from "@/lib/utils";
+import { parseBlueprintSourceSpec } from "@/lib/console_utils";
 
 interface FormPutProps {
   selectedKey: string;
@@ -187,9 +188,9 @@ function parseSourceOptions(
   field: Record<string, unknown> | undefined,
   blueprint: FormPutProps["blueprint"],
 ): Record<string, string> | null {
-  const sourceRaw = field?.source;
-  if (typeof sourceRaw !== "string" || sourceRaw.length === 0) return null;
-  const sourceKey = sourceRaw.split(":")[0];
+  const sourceSpec = parseBlueprintSourceSpec(field?.source);
+  if (!sourceSpec) return null;
+  const sourceKey = sourceSpec.target;
   const richMap = blueprint?.rich?.[sourceKey];
   if (!richMap || typeof richMap !== "object" || Array.isArray(richMap)) return null;
   const out: Record<string, string> = {};
@@ -198,6 +199,25 @@ function parseSourceOptions(
     out[k] = typeof v === "string" ? v : v == null ? "" : String(v);
   }
   return Object.keys(out).length > 0 ? out : null;
+}
+
+function getReferenceStoredValue(entry: unknown): string {
+  if (entry === null || entry === undefined) return "";
+  if (typeof entry === "object" && !Array.isArray(entry)) {
+    const ref = entry as Record<string, unknown>;
+    const candidate =
+      ref.value ??
+      ref.id ??
+      ref._id ??
+      (typeof ref.target === "object" && ref.target !== null
+        ? (ref.target as Record<string, unknown>).id ??
+          (ref.target as Record<string, unknown>)._id ??
+          (ref.target as Record<string, unknown>).value
+        : undefined);
+    if (candidate === null || candidate === undefined) return "";
+    return String(candidate).trim();
+  }
+  return String(entry).trim();
 }
 
 /** Value persisted on the document: strip optional `id:` prefix from blueprint option keys. */
@@ -478,7 +498,7 @@ function buildEditState(
       field?.required === true || field?.required === "true";
     if (isMultiple) {
       const rawValues = toArray(selectedValue)
-        .map((entry) => String(entry ?? ""))
+        .map((entry) => getReferenceStoredValue(entry))
         .filter((entry) => entry.length > 0);
       const valueKeys = rawValues.map((value) => resolveEnumStoredKey(value, optionMap));
       const merged = { ...optionMap };
@@ -493,7 +513,7 @@ function buildEditState(
     let raw =
       selectedValue === null || selectedValue === undefined
         ? ""
-        : String(selectedValue);
+        : getReferenceStoredValue(selectedValue);
     if (!raw) {
       const def = field?.default;
       if (typeof def === "string" && def) raw = def;

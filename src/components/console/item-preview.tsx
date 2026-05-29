@@ -39,7 +39,11 @@ import {
 import DialogPut from '@/components/console/dialog-put'
 import ImagePreview from "@/components/console/image-preview"
 import { formatBlueprintFieldValue } from "@/lib/blueprint-field-display"
-import { getBlueprintIndexPathFieldSet, resolveDocumentTitle } from "@/lib/console_utils"
+import {
+  getBlueprintIndexPathFieldSet,
+  parseBlueprintSourceSpec,
+  resolveDocumentTitle,
+} from "@/lib/console_utils"
 
 
 interface ItemPreviewProps { 
@@ -66,6 +70,7 @@ interface FieldDictionary {
     label?: string;
     cardinality?: string;
     type?: string;
+    source?: unknown;
   };
 }
 
@@ -76,7 +81,7 @@ interface BlueprintField {
   label?: string;
   cardinality?: string;
   type?: string;
-  source?: string;
+  source?: unknown;
   edges?: [string, string];
 }
 
@@ -266,6 +271,72 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
         );
       }
 
+      const sourceSpec = parseBlueprintSourceSpec(fieldInfo?.source);
+      if (sourceSpec) {
+        const entries = Array.isArray(value) ? value : value == null ? [] : [value];
+        const richMap = blueprint?.rich?.[sourceSpec.target] ?? {};
+        const resolveReferenceId = (entry: unknown): string => {
+          if (entry == null) return "";
+          if (typeof entry === "object" && !Array.isArray(entry)) {
+            const ref = entry as Record<string, unknown>;
+            const target = ref.target;
+            const targetObj = target && typeof target === "object" && !Array.isArray(target)
+              ? (target as Record<string, unknown>)
+              : undefined;
+            const candidate =
+              ref.value ??
+              ref.id ??
+              ref._id ??
+              ref[sourceSpec.targetKey] ??
+              targetObj?.value ??
+              targetObj?.id ??
+              targetObj?._id ??
+              targetObj?.[sourceSpec.targetKey];
+            return candidate == null ? "" : String(candidate).trim();
+          }
+          return String(entry).trim();
+        };
+
+        const resolveReferenceLabel = (entry: unknown): string => {
+          const refId = resolveReferenceId(entry);
+          if (refId && richMap && typeof richMap === "object" && refId in richMap) {
+            return String(richMap[refId]);
+          }
+          if (entry && typeof entry === "object" && !Array.isArray(entry) && sourceSpec.targetLabelFields.length > 0) {
+            const ref = entry as Record<string, unknown>;
+            const target = ref.target;
+            const targetObj = target && typeof target === "object" && !Array.isArray(target)
+              ? (target as Record<string, unknown>)
+              : undefined;
+            const parts = sourceSpec.targetLabelFields
+              .map((fieldName) => {
+                const direct = ref[fieldName];
+                const nested = targetObj?.[fieldName];
+                const candidate = direct ?? nested;
+                return candidate == null ? "" : String(candidate).trim();
+              })
+              .filter((part) => part.length > 0);
+            if (parts.length > 0) {
+              return parts.join(", ");
+            }
+          }
+          return refId;
+        };
+
+        const labels = entries
+          .map((entry) => resolveReferenceLabel(entry))
+          .filter((label) => label.length > 0);
+
+        if (labels.length === 0) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        return (
+          <span className="break-words [overflow-wrap:anywhere]">
+            {labels.join(", ")}
+          </span>
+        );
+      }
+
       return formatBlueprintFieldValue(value, key, blueprint);
     };
 
@@ -276,37 +347,36 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
       const fromBlueprint = typeof blueprint?.name === "string" ? blueprint.name : ring;
       const edgeMap = new Map<string, EdgeDefinition>();
       for (const field of blueprint?.fields || []) {
-        if (!field || typeof field !== "object" || typeof field.source !== "string" || field.name === undefined || field.name === null) {
+        if (!field || typeof field !== "object" || field.name === undefined || field.name === null) {
           continue;
         }
-        const sourceParts = field.source.split(":");
-        if (sourceParts.length !== 3 || sourceParts[1] !== "_id") {
+        const sourceSpec = parseBlueprintSourceSpec(field.source);
+        if (!sourceSpec) {
           continue;
         }
-        const edgeType = `${fromBlueprint}:${String(field.name)}:${sourceParts[0]}:${sourceParts[1]}`;
-        const aliases = Array.isArray(field.edges) ? field.edges : [];
-        const current = edgeMap.get(edgeType) || { edgeType };
-        if (!current.outgoingAlias && typeof aliases[0] === "string") {
-          current.outgoingAlias = aliases[0];
+        const fieldName = String(field.name);
+        const implicitEdgeType = `${fromBlueprint}:${fieldName}:${sourceSpec.target}:${sourceSpec.targetKey}`;
+        const edgeTypes = [implicitEdgeType];
+        const sourceLabels =
+          field.source && typeof field.source === "object" && !Array.isArray(field.source)
+            ? (field.source as Record<string, unknown>).label
+            : undefined;
+        const sourceAliases = Array.isArray(sourceLabels)
+          ? [sourceLabels[0], sourceLabels[1]]
+          : [];
+        const aliases = Array.isArray(field.edges) && field.edges.length > 0 ? field.edges : sourceAliases;
+        for (const edgeType of edgeTypes) {
+          const current = edgeMap.get(edgeType) || { edgeType };
+          if (!current.outgoingAlias && typeof aliases[0] === "string") {
+            current.outgoingAlias = aliases[0];
+          }
+          if (!current.incomingAlias && typeof aliases[1] === "string") {
+            current.incomingAlias = aliases[1];
+          }
+          edgeMap.set(edgeType, current);
         }
-        if (!current.incomingAlias && typeof aliases[1] === "string") {
-          current.incomingAlias = aliases[1];
-        }
-        edgeMap.set(edgeType, current);
       }
       return Array.from(edgeMap.values());
-    };
-
-    const resolveAlias = (
-      edgeType: string,
-      perspective: "outgoing" | "incoming",
-      definitions: EdgeDefinition[],
-    ) => {
-      const definition = definitions.find((item) => item.edgeType === edgeType);
-      if (!definition) return edgeType;
-      return perspective === "outgoing"
-        ? (definition.outgoingAlias || edgeType)
-        : (definition.incomingAlias || edgeType);
     };
 
     const runGraphEdgeQuery = async () => {
@@ -334,18 +404,6 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
         const body = text ? JSON.parse(text) : {};
         if (!response.ok) {
           throw new Error(body?.message || `Graph query failed (${response.status})`);
-        }
-        if (Array.isArray(body.outgoing)) {
-          body.outgoing = body.outgoing.map((edge: any) => ({
-            ...edge,
-            edge_label: resolveAlias(String(edge?.edge_type || ""), "outgoing", inferred),
-          }));
-        }
-        if (Array.isArray(body.incoming)) {
-          body.incoming = body.incoming.map((edge: any) => ({
-            ...edge,
-            edge_label: resolveAlias(String(edge?.edge_type || ""), "incoming", inferred),
-          }));
         }
         setGraphResponse(body);
       } catch (err) {
@@ -378,7 +436,7 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
           case 'usecase5':
               componentToRender = <GraphWave />;
               break;
-          default:
+          default:j
               componentToRender = <div></div>;
       }
   

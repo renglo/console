@@ -17,8 +17,83 @@ interface Field {
     order: number;
     required: boolean;
     semantic: string;
-    source: string;
+    source?: unknown;
   }
+
+export interface BlueprintSourceSpec {
+    target: string;
+    targetKey: string;
+    targetLabelFields: string[];
+    edgeType?: string;
+    qualifiers: string[];
+    dynamic: boolean;
+}
+
+function readReferenceValue(entry: unknown): string | null {
+    if (entry === null || entry === undefined) return null;
+    if (typeof entry === "object" && !Array.isArray(entry)) {
+        const ref = entry as Record<string, unknown>;
+        const direct =
+            ref.value ??
+            ref.id ??
+            ref._id ??
+            (typeof ref.target === "object" && ref.target !== null
+                ? (ref.target as Record<string, unknown>).id ??
+                  (ref.target as Record<string, unknown>)._id ??
+                  (ref.target as Record<string, unknown>).value
+                : undefined);
+        if (direct === null || direct === undefined) return null;
+        const text = String(direct).trim();
+        return text || null;
+    }
+    const text = String(entry).trim();
+    return text || null;
+}
+
+export function parseBlueprintSourceSpec(source: unknown): BlueprintSourceSpec | null {
+    if (typeof source === "string") {
+        const parts = source.split(":").map((p) => p.trim());
+        if (parts.length !== 3 || !parts[0] || !parts[1]) return null;
+        const labelFields = parts[2]
+            .split(",")
+            .map((token) => token.trim())
+            .filter(Boolean);
+        return {
+            target: parts[0],
+            targetKey: parts[1],
+            targetLabelFields: labelFields,
+            qualifiers: [],
+            dynamic: false,
+        };
+    }
+
+    if (!source || typeof source !== "object" || Array.isArray(source)) {
+        return null;
+    }
+    const raw = source as Record<string, unknown>;
+    const target = typeof raw.target === "string" ? raw.target.trim() : "";
+    const targetKey = typeof raw.target_key === "string" ? raw.target_key.trim() : "_id";
+    if (!target || !targetKey) return null;
+
+    const rawLabel = raw.preview;
+    const targetLabelFields = Array.isArray(rawLabel)
+        ? rawLabel.map((token) => String(token).trim()).filter(Boolean)
+        : typeof rawLabel === "string"
+            ? rawLabel.split(",").map((token) => token.trim()).filter(Boolean)
+            : [];
+    const qualifiers = Array.isArray(raw.qualifiers)
+        ? raw.qualifiers.map((token) => String(token).trim()).filter(Boolean)
+        : [];
+    const edgeType = typeof raw.type === "string" && raw.type.trim() ? raw.type.trim() : undefined;
+    return {
+        target,
+        targetKey,
+        targetLabelFields,
+        edgeType,
+        qualifiers,
+        dynamic: Boolean(raw.dynamic),
+    };
+}
 
 /** Numeric tier for list/detail visibility: table shows fields with tier ≤ 0. */
 export function fieldLayer(field: { layer?: unknown; level?: unknown }): number {
@@ -151,16 +226,16 @@ export const overloadBlueprint = async (currentBlueprint: Blueprint, portfolio_i
     }
 
     for (const field of currentBlueprint.fields) {
-        if (field.source) {
-            const regex = /^[a-zA-Z0-9_]+:[a-zA-Z0-9_]+:[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$/;
-
-            if (regex.test(field.source)) {
-                const [x, y, z] = field.source.split(':');
-                // x: Ring
-
-                // Generate "sources" object
-                if (field.name) {
-                    updatedBlueprint.sources[field.name] = field.source;
+        const sourceSpec = parseBlueprintSourceSpec(field.source);
+        if (sourceSpec) {
+                const x = sourceSpec.target;
+                const y = sourceSpec.targetKey;
+                const z = sourceSpec.targetLabelFields.length > 0
+                    ? sourceSpec.targetLabelFields.join(",")
+                    : "name";
+                // Generate "sources" object (legacy-compatible key for rich lookups)
+                if (field.name && typeof field.name === "string") {
+                    updatedBlueprint.sources[field.name] = `${x}:${y}:${z}`;
                 }
 
                 // Generate "rich" object
@@ -199,7 +274,6 @@ export const overloadBlueprint = async (currentBlueprint: Blueprint, portfolio_i
                 } catch (error) {
                     console.error(`Error fetching data for ${x}:`, error);
                 }
-            }
         }
     }
 
@@ -226,14 +300,20 @@ export const replaceUUID = async (currentData: DataItem[], currentBlueprint: Blu
                 const value = updatedItem[key];
                 // Replace UUID with human-readable name
                 const sourceKey = currentBlueprint.sources?.[key];
-                if (sourceKey && currentBlueprint.rich) {
-                    const richMap = currentBlueprint.rich[sourceKey.split(':')[0]] ?? {};
+                const sourceSpec = parseBlueprintSourceSpec(sourceKey);
+                if (sourceSpec && currentBlueprint.rich) {
+                    const richMap = currentBlueprint.rich[sourceSpec.target] ?? {};
                     if (Array.isArray(value)) {
                         updatedItem[key] = value.map((entry) =>
-                            richMap[String(entry)] ?? entry
+                            (() => {
+                                const refValue = readReferenceValue(entry);
+                                if (!refValue) return entry;
+                                return richMap[refValue] ?? entry;
+                            })()
                         );
                     } else {
-                        updatedItem[key] = richMap[String(value)] ?? value;
+                        const refValue = readReferenceValue(value);
+                        updatedItem[key] = refValue ? (richMap[refValue] ?? value) : value;
                     }
                 } else {
                     updatedItem[key] = value;
