@@ -3,7 +3,7 @@ import { useState,useEffect,useContext } from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDown, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import TagsInput from "@/components/ui/tags-input";
 import {
   Popover,
@@ -433,6 +434,116 @@ interface FormPostProps {
     hideSubmitButton?: boolean;
 }
 
+interface SourceFieldMeta {
+  target: string;
+  targetKey: string;
+  labels: [string, string];
+  qualifierKeys: string[];
+}
+
+interface SourceOverrideState {
+  labelForward: string;
+  labelBackward: string;
+  qualifiers: Record<string, string>;
+}
+
+function getSourceFieldMeta(field: FieldDefinition): SourceFieldMeta | null {
+  const sourceSpec = parseBlueprintSourceSpec(field.source);
+  if (!sourceSpec) return null;
+  if (!field.source || typeof field.source !== "object" || Array.isArray(field.source)) return null;
+  const raw = field.source as Record<string, unknown>;
+  const labelsRaw = raw.label;
+  const labelsList = Array.isArray(labelsRaw)
+    ? labelsRaw.map((entry) => String(entry).trim()).filter(Boolean)
+    : typeof labelsRaw === "string"
+      ? labelsRaw.split(",").map((entry) => entry.trim()).filter(Boolean)
+      : [];
+  const qualifierKeys = Array.isArray(raw.qualifiers)
+    ? raw.qualifiers.map((entry) => String(entry).trim()).filter(Boolean)
+    : [];
+  return {
+    target: sourceSpec.target,
+    targetKey: sourceSpec.targetKey,
+    labels: [
+      labelsList[0] ?? "",
+      labelsList[1] ?? labelsList[0] ?? "",
+    ],
+    qualifierKeys,
+  };
+}
+
+function defaultSourceOverride(meta: SourceFieldMeta): SourceOverrideState {
+  const qualifiers: Record<string, string> = {};
+  meta.qualifierKeys.forEach((key) => {
+    qualifiers[key] = "";
+  });
+  return {
+    labelForward: meta.labels[0],
+    labelBackward: meta.labels[1],
+    qualifiers,
+  };
+}
+
+function getSourceOverrideAt(
+  overridesByField: Record<string, SourceOverrideState[]>,
+  fieldName: string,
+  index: number,
+  meta: SourceFieldMeta,
+): SourceOverrideState {
+  return overridesByField[fieldName]?.[index] ?? defaultSourceOverride(meta);
+}
+
+function formatSourceOverrideHint(override: SourceOverrideState, qualifierKeys: string[]): string {
+  const forward = override.labelForward.trim() || "none";
+  const backward = override.labelBackward.trim() || "none";
+  const qualifiers = qualifierKeys.length > 0
+    ? qualifierKeys
+      .map((key) => `${key}: ${(override.qualifiers[key] ?? "").trim() || "none"}`)
+      .join(" | ")
+    : "none";
+  return `Forward: ${forward} | Backward: ${backward} | Qualifiers: ${qualifiers}`;
+}
+
+function extractReferenceId(raw: unknown, targetKey: string): string {
+  if (raw === null || raw === undefined) return "";
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    const ref = raw as Record<string, unknown>;
+    const nested = ref.target;
+    const nestedObj = nested && typeof nested === "object" && !Array.isArray(nested)
+      ? (nested as Record<string, unknown>)
+      : undefined;
+    const candidate =
+      ref.value ??
+      ref.id ??
+      ref._id ??
+      ref[targetKey] ??
+      nestedObj?.value ??
+      nestedObj?.id ??
+      nestedObj?._id ??
+      nestedObj?.[targetKey];
+    return candidate == null ? "" : String(candidate).trim();
+  }
+  return String(raw).trim();
+}
+
+function buildSourceReferenceObject(
+  raw: unknown,
+  meta: SourceFieldMeta,
+  override: SourceOverrideState,
+): Record<string, unknown> | null {
+  const value = extractReferenceId(raw, meta.targetKey);
+  if (!value) return null;
+  const labels = [override.labelForward.trim(), override.labelBackward.trim()].filter(Boolean);
+  const qualifiers: Record<string, string> = {};
+  Object.entries(override.qualifiers).forEach(([k, v]) => {
+    qualifiers[k] = String(v ?? "");
+  });
+  const payload: Record<string, unknown> = { value };
+  if (labels.length > 0) payload.label = labels;
+  if (Object.keys(qualifiers).length > 0) payload.qualifiers = qualifiers;
+  return payload;
+}
+
   
 
 export default function FormPost({
@@ -457,6 +568,7 @@ export default function FormPost({
   const [Fields, setFields] = useState<FieldDefinition[]>([]);
   const [Rich, setRich] = useState<RichDefinition>({});
   const [file, setFile] = useState<File | null>(null);
+  const [sourceOverrides, setSourceOverrides] = useState<Record<string, SourceOverrideState[]>>({});
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; // Get the uploaded file
@@ -499,36 +611,41 @@ export default function FormPost({
             return (
               <div className="space-y-2">
                 {currentValues.map((value, index) => (
-                  <div key={`${field.name}-${index}`} className="flex gap-2">
-                    <Input
-                      placeholder={field.hint}
-                      value={value}
-                      onChange={(event) => {
-                        const next = [...currentValues];
-                        next[index] = event.target.value;
-                        formField.onChange(next);
-                      }}
-                    />
+                  <div key={`${field.name}-${index}`} className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <Input
+                        placeholder={field.hint}
+                        value={value}
+                        onChange={(event) => {
+                          const next = [...currentValues];
+                          next[index] = event.target.value;
+                          formField.onChange(next);
+                        }}
+                      />
+                    </div>
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-600 hover:text-red-700"
                       onClick={() => {
                         const next = currentValues.filter((_, valueIndex) => valueIndex !== index);
                         formField.onChange(next.length ? next : []);
                       }}
+                      aria-label="Remove value"
                     >
-                      -
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
+                  size="icon"
                   onClick={() => formField.onChange([...currentValues, ""])}
+                  aria-label="Add value"
                 >
-                  Add value
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             );
@@ -545,37 +662,42 @@ export default function FormPost({
             return (
               <div className="space-y-2">
                 {currentValues.map((value, index) => (
-                  <div key={`${field.name}-textarea-${index}`} className="space-y-2">
-                    <Textarea
-                      placeholder={field.hint}
-                      value={value}
-                      rows={4}
-                      onChange={(event) => {
-                        const next = [...currentValues];
-                        next[index] = event.target.value;
-                        formField.onChange(next);
-                      }}
-                    />
+                  <div key={`${field.name}-textarea-${index}`} className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <Textarea
+                        placeholder={field.hint}
+                        value={value}
+                        rows={4}
+                        onChange={(event) => {
+                          const next = [...currentValues];
+                          next[index] = event.target.value;
+                          formField.onChange(next);
+                        }}
+                      />
+                    </div>
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-600 hover:text-red-700"
                       onClick={() => {
                         const next = currentValues.filter((_, valueIndex) => valueIndex !== index);
                         formField.onChange(next.length ? next : []);
                       }}
+                      aria-label="Remove value"
                     >
-                      -
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
+                  size="icon"
                   onClick={() => formField.onChange([...currentValues, ""])}
+                  aria-label="Add value"
                 >
-                  Add value
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             );
@@ -592,39 +714,44 @@ export default function FormPost({
             return (
               <div className="space-y-2">
                 {currentValues.map((value, index) => (
-                  <div key={`${field.name}-datetime-${index}`} className="space-y-2">
-                    <Input
-                      type="datetime-local"
-                      value={toDatetimeLocalValue(value)}
-                      onChange={(event) => {
-                        const next = [...currentValues];
-                        next[index] = event.target.value;
-                        formField.onChange(next);
-                      }}
-                    />
-                    <p className="text-xs text-muted-foreground break-all">
-                      {value || field.hint || "YYYY-MM-DDTHH:mm"}
-                    </p>
+                  <div key={`${field.name}-datetime-${index}`} className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Input
+                        type="datetime-local"
+                        value={toDatetimeLocalValue(value)}
+                        onChange={(event) => {
+                          const next = [...currentValues];
+                          next[index] = event.target.value;
+                          formField.onChange(next);
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground break-all">
+                        {value || field.hint || "YYYY-MM-DDTHH:mm"}
+                      </p>
+                    </div>
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-600 hover:text-red-700"
                       onClick={() => {
                         const next = currentValues.filter((_, valueIndex) => valueIndex !== index);
                         formField.onChange(next.length ? next : []);
                       }}
+                      aria-label="Remove value"
                     >
-                      -
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
+                  size="icon"
                   onClick={() => formField.onChange([...currentValues, ""])}
+                  aria-label="Add value"
                 >
-                  Add value
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             );
@@ -652,39 +779,44 @@ export default function FormPost({
             return (
               <div className="space-y-2">
                 {currentValues.map((value, index) => (
-                  <div key={`${field.name}-json-${index}`} className="space-y-2">
-                    <Textarea
-                      placeholder={field.hint || "Enter JSON"}
-                      value={value}
-                      rows={8}
-                      className="font-mono text-xs leading-relaxed"
-                      spellCheck={false}
-                      onChange={(event) => {
-                        const next = [...currentValues];
-                        next[index] = event.target.value;
-                        formField.onChange(next);
-                      }}
-                    />
+                  <div key={`${field.name}-json-${index}`} className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <Textarea
+                        placeholder={field.hint || "Enter JSON"}
+                        value={value}
+                        rows={8}
+                        className="font-mono text-xs leading-relaxed"
+                        spellCheck={false}
+                        onChange={(event) => {
+                          const next = [...currentValues];
+                          next[index] = event.target.value;
+                          formField.onChange(next);
+                        }}
+                      />
+                    </div>
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-600 hover:text-red-700"
                       onClick={() => {
                         const next = currentValues.filter((_, valueIndex) => valueIndex !== index);
                         formField.onChange(next.length ? next : []);
                       }}
+                      aria-label="Remove value"
                     >
-                      -
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
+                  size="icon"
                   onClick={() => formField.onChange([...currentValues, ""])}
+                  aria-label="Add value"
                 >
-                  Add value
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             );
@@ -710,39 +842,44 @@ export default function FormPost({
             return (
               <div className="space-y-2">
                 {currentValues.map((value, index) => (
-                  <div key={`${field.name}-date-${index}`} className="space-y-2">
-                    <Input
-                      type="date"
-                      value={toDateValue(value)}
-                      onChange={(event) => {
-                        const next = [...currentValues];
-                        next[index] = event.target.value;
-                        formField.onChange(next);
-                      }}
-                    />
-                    <p className="text-xs text-muted-foreground break-all">
-                      {value || field.hint || "YYYY-MM-DD"}
-                    </p>
+                  <div key={`${field.name}-date-${index}`} className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Input
+                        type="date"
+                        value={toDateValue(value)}
+                        onChange={(event) => {
+                          const next = [...currentValues];
+                          next[index] = event.target.value;
+                          formField.onChange(next);
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground break-all">
+                        {value || field.hint || "YYYY-MM-DD"}
+                      </p>
+                    </div>
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-600 hover:text-red-700"
                       onClick={() => {
                         const next = currentValues.filter((_, valueIndex) => valueIndex !== index);
                         formField.onChange(next.length ? next : []);
                       }}
+                      aria-label="Remove value"
                     >
-                      -
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
+                  size="icon"
                   onClick={() => formField.onChange([...currentValues, ""])}
+                  aria-label="Add value"
                 >
-                  Add value
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             );
@@ -770,39 +907,44 @@ export default function FormPost({
             return (
               <div className="space-y-2">
                 {currentValues.map((value, index) => (
-                  <div key={`${field.name}-time-${index}`} className="space-y-2">
-                    <Input
-                      type="time"
-                      value={toTimeValue(value)}
-                      onChange={(event) => {
-                        const next = [...currentValues];
-                        next[index] = event.target.value;
-                        formField.onChange(next);
-                      }}
-                    />
-                    <p className="text-xs text-muted-foreground break-all">
-                      {value || field.hint || "HH:mm"}
-                    </p>
+                  <div key={`${field.name}-time-${index}`} className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Input
+                        type="time"
+                        value={toTimeValue(value)}
+                        onChange={(event) => {
+                          const next = [...currentValues];
+                          next[index] = event.target.value;
+                          formField.onChange(next);
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground break-all">
+                        {value || field.hint || "HH:mm"}
+                      </p>
+                    </div>
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-600 hover:text-red-700"
                       onClick={() => {
                         const next = currentValues.filter((_, valueIndex) => valueIndex !== index);
                         formField.onChange(next.length ? next : []);
                       }}
+                      aria-label="Remove value"
                     >
-                      -
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
+                  size="icon"
                   onClick={() => formField.onChange([...currentValues, ""])}
+                  aria-label="Add value"
                 >
-                  Add value
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             );
@@ -837,44 +979,48 @@ export default function FormPost({
                   const start = normalize(startRaw);
                   const end = normalize(endRaw);
                   return (
-                    <div key={`${field.name}-${field.widget}-${index}`} className="space-y-2">
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <Input
-                          type={inputType}
-                          value={start}
-                          onChange={(event) => {
-                            const next = [...currentValues];
-                            next[index] = formatRangeValue(event.target.value, end);
-                            formField.onChange(next);
-                          }}
-                        />
-                        <Input
-                          type={inputType}
-                          value={end}
-                          onChange={(event) => {
-                            const next = [...currentValues];
-                            next[index] = formatRangeValue(start, event.target.value);
-                            formField.onChange(next);
-                          }}
-                        />
+                    <div key={`${field.name}-${field.widget}-${index}`} className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <Input
+                            type={inputType}
+                            value={start}
+                            onChange={(event) => {
+                              const next = [...currentValues];
+                              next[index] = formatRangeValue(event.target.value, end);
+                              formField.onChange(next);
+                            }}
+                          />
+                          <Input
+                            type={inputType}
+                            value={end}
+                            onChange={(event) => {
+                              const next = [...currentValues];
+                              next[index] = formatRangeValue(start, event.target.value);
+                              formField.onChange(next);
+                            }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground break-all">
+                          {value ||
+                            field.hint ||
+                            (field.widget === "timerange"
+                              ? "HH:mm - HH:mm"
+                              : "YYYY-MM-DD - YYYY-MM-DD")}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground break-all">
-                        {value ||
-                          field.hint ||
-                          (field.widget === "timerange"
-                            ? "HH:mm - HH:mm"
-                            : "YYYY-MM-DD - YYYY-MM-DD")}
-                      </p>
                       <Button
                         type="button"
-                        variant="outline"
-                        size="sm"
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-600 hover:text-red-700"
                         onClick={() => {
                           const next = currentValues.filter((_, valueIndex) => valueIndex !== index);
                           formField.onChange(next.length ? next : []);
                         }}
+                        aria-label="Remove value"
                       >
-                        -
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   );
@@ -882,10 +1028,11 @@ export default function FormPost({
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
+                  size="icon"
                   onClick={() => formField.onChange([...currentValues, ""])}
+                  aria-label="Add value"
                 >
-                  Add value
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             );
@@ -952,75 +1099,192 @@ export default function FormPost({
           );
     
         case "select":
-          if (isMultiple) {
-            const options = resolveSelectOptions();
-            return (
-              <SearchableSelect
-                options={options}
-                value={formField.value}
-                onChange={(next) => formField.onChange(next)}
-                multiple
-                placeholder={field.hint}
-              />
-            );
-          }
+          const sourceMeta = getSourceFieldMeta(field);
           const options = resolveSelectOptions();
+          const currentRawValues = isMultiple
+            ? Array.isArray(formField.value)
+              ? formField.value
+              : formField.value == null || formField.value === ""
+                ? []
+                : [formField.value]
+            : [formField.value];
+          const currentValues = currentRawValues.map((entry) =>
+            sourceMeta ? extractReferenceId(entry, sourceMeta.targetKey) : String(entry ?? ""),
+          );
+          const normalizedValues = currentValues.length > 0 ? currentValues : [""];
           if (Object.keys(options).length > 0) {
             return (
-              <SearchableSelect
-                options={options}
-                value={formField.value}
-                onChange={(next) => formField.onChange(next)}
-                multiple={false}
-                placeholder={field.hint}
-                allowEmpty={!field.required}
-                emptyLabel="None"
-              />
+              <div className="space-y-2">
+                {normalizedValues.map((entryValue, index) => {
+                  const sourceOverride = sourceMeta
+                    ? getSourceOverrideAt(sourceOverrides, field.name, index, sourceMeta)
+                    : null;
+                  return (
+                    <div key={`${field.name}-select-${index}`} className="space-y-2 rounded-md border p-2">
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <SearchableSelect
+                            options={options}
+                            value={entryValue}
+                            onChange={(next) => {
+                              const nextValues = [...normalizedValues];
+                              nextValues[index] = String(Array.isArray(next) ? next[0] ?? "" : next);
+                              formField.onChange(isMultiple ? nextValues : nextValues[0] ?? "");
+                            }}
+                            multiple={false}
+                            placeholder={field.hint}
+                            allowEmpty={!field.required}
+                            emptyLabel="None"
+                          />
+                          {sourceMeta && sourceOverride ? (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button type="button" variant="outline" size="icon" aria-label="Relationship details">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-96 space-y-3" align="start">
+                                <p className="text-xs text-muted-foreground">Override this reference labels and qualifiers.</p>
+                                <div className="grid gap-2">
+                                  <Label htmlFor={`${field.name}-${index}-label-forward`} className="text-xs">Forward label</Label>
+                                  <Input
+                                    id={`${field.name}-${index}-label-forward`}
+                                    value={sourceOverride.labelForward}
+                                    onChange={(event) =>
+                                      setSourceOverrides((prev) => {
+                                        const fieldOverrides = [...(prev[field.name] ?? [])];
+                                        fieldOverrides[index] = {
+                                          ...sourceOverride,
+                                          labelForward: event.target.value,
+                                        };
+                                        return { ...prev, [field.name]: fieldOverrides };
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label htmlFor={`${field.name}-${index}-label-backward`} className="text-xs">Backward label</Label>
+                                  <Input
+                                    id={`${field.name}-${index}-label-backward`}
+                                    value={sourceOverride.labelBackward}
+                                    onChange={(event) =>
+                                      setSourceOverrides((prev) => {
+                                        const fieldOverrides = [...(prev[field.name] ?? [])];
+                                        fieldOverrides[index] = {
+                                          ...sourceOverride,
+                                          labelBackward: event.target.value,
+                                        };
+                                        return { ...prev, [field.name]: fieldOverrides };
+                                      })
+                                    }
+                                  />
+                                </div>
+                                {sourceMeta.qualifierKeys.map((qualifierKey) => (
+                                  <div key={`${field.name}-${index}-qualifier-${qualifierKey}`} className="grid gap-2">
+                                    <Label htmlFor={`${field.name}-${index}-qualifier-${qualifierKey}`} className="text-xs">
+                                      Qualifier: {qualifierKey}
+                                    </Label>
+                                    <Input
+                                      id={`${field.name}-${index}-qualifier-${qualifierKey}`}
+                                      value={sourceOverride.qualifiers[qualifierKey] ?? ""}
+                                      onChange={(event) =>
+                                        setSourceOverrides((prev) => {
+                                          const fieldOverrides = [...(prev[field.name] ?? [])];
+                                          fieldOverrides[index] = {
+                                            ...sourceOverride,
+                                            qualifiers: {
+                                              ...sourceOverride.qualifiers,
+                                              [qualifierKey]: event.target.value,
+                                            },
+                                          };
+                                          return { ...prev, [field.name]: fieldOverrides };
+                                        })
+                                      }
+                                    />
+                                  </div>
+                                ))}
+                              </PopoverContent>
+                            </Popover>
+                          ) : null}
+                        </div>
+                        {isMultiple && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => {
+                              const nextValues = normalizedValues.filter((_, valueIndex) => valueIndex !== index);
+                              formField.onChange(nextValues.length > 0 ? nextValues : [""]);
+                              if (sourceMeta) {
+                                setSourceOverrides((prev) => {
+                                  const fieldOverrides = [...(prev[field.name] ?? [])];
+                                  fieldOverrides.splice(index, 1);
+                                  return { ...prev, [field.name]: fieldOverrides };
+                                });
+                              }
+                            }}
+                            aria-label="Remove relationship"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {sourceMeta && sourceOverride ? (
+                        <p className="text-xs text-muted-foreground">
+                          {formatSourceOverrideHint(sourceOverride, sourceMeta.qualifierKeys)}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {isMultiple && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    onClick={() => formField.onChange([...(normalizedValues ?? []), ""])}
+                    aria-label="Add relationship"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             );
           }
           return (
-            <Select onValueChange={formField.onChange} value={formField.value}>
-              <SelectTrigger>
-                <SelectValue placeholder={field.hint} />
-              </SelectTrigger>
-  
-  
-              <SelectContent>
-          
-                {field.options && !isCascadeOptions(field.options) ? (
-                  // If field.options exist, map over the options and display SelectItem components
-                  Object.entries(field.options).map(([value, label]) => (
-                    <SelectItem key={value} value={value.includes(':') ? value.split(':')[1] : value}>
-                      {label}
-                    </SelectItem>
-                  ))
-                ) : (
-                  // Else, check if field.rich[field.source.split(':')[1]] exists
-                  
-                  (() => {
-                    const sourceSpec = parseBlueprintSourceSpec(field.source);
-                    const richKey = sourceSpec?.target ?? "";
-                    return Rich[richKey] ? (
-                    <>
-                      {Object.entries(Rich[richKey]).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </>
+            <div className="space-y-2">
+              <Select onValueChange={formField.onChange} value={formField.value}>
+                <SelectTrigger>
+                  <SelectValue placeholder={field.hint} />
+                </SelectTrigger>
+                <SelectContent>
+                  {field.options && !isCascadeOptions(field.options) ? (
+                    Object.entries(field.options).map(([value, label]) => (
+                      <SelectItem key={value} value={value.includes(':') ? value.split(':')[1] : value}>
+                        {label}
+                      </SelectItem>
+                    ))
                   ) : (
-                    <SelectItem key='x' value='0'>No options</SelectItem>
-                  );
-                  })()
-  
-                  
-                )}
-  
-              </SelectContent>
-  
-              
-  
-            </Select>
+                    (() => {
+                      const sourceSpec = parseBlueprintSourceSpec(field.source);
+                      const richKey = sourceSpec?.target ?? "";
+                      return Rich[richKey] ? (
+                        <>
+                          {Object.entries(Rich[richKey]).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </>
+                      ) : (
+                        <SelectItem key='x' value='0'>No options</SelectItem>
+                      );
+                    })()
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           );
 
         case "select-cascade": {
@@ -1156,6 +1420,40 @@ export default function FormPost({
             variant: "destructive",
           });
           return;
+        }
+      }
+
+      // Normalize source-governed references to object payloads.
+      for (const field of Fields) {
+        const sourceMeta = getSourceFieldMeta(field);
+        if (!sourceMeta) continue;
+        const fieldName = field.name;
+        const overrideList = sourceOverrides[fieldName] ?? [];
+        const currentValue = (data as Record<string, unknown>)[fieldName];
+        const isMultiple = String(field.cardinality ?? "single").toLowerCase() === "multiple";
+        if (isMultiple) {
+          const values = Array.isArray(currentValue)
+            ? currentValue
+            : currentValue == null || currentValue === ""
+              ? []
+              : [currentValue];
+          (data as Record<string, unknown>)[fieldName] = values
+            .map((entry, index) =>
+              buildSourceReferenceObject(
+                entry,
+                sourceMeta,
+                overrideList[index] ?? defaultSourceOverride(sourceMeta),
+              ),
+            )
+            .filter((entry): entry is Record<string, unknown> => entry !== null);
+        } else {
+          if (currentValue == null || currentValue === "") continue;
+          const referenceObject = buildSourceReferenceObject(
+            currentValue,
+            sourceMeta,
+            overrideList[0] ?? defaultSourceOverride(sourceMeta),
+          );
+          (data as Record<string, unknown>)[fieldName] = referenceObject ?? "";
         }
       }
 

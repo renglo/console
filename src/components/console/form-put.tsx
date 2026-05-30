@@ -1,5 +1,5 @@
-import { useState, useEffect, useContext, FormEvent } from "react";
-import { ChevronsUpDown } from "lucide-react";
+import { useState, useEffect, useContext, FormEvent, useMemo } from "react";
+import { ChevronsUpDown, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -218,6 +218,82 @@ function getReferenceStoredValue(entry: unknown): string {
     return String(candidate).trim();
   }
   return String(entry).trim();
+}
+
+interface SourceFieldMeta {
+  target: string;
+  targetKey: string;
+  labels: [string, string];
+  qualifierKeys: string[];
+}
+
+interface SourceOverrideState {
+  labelForward: string;
+  labelBackward: string;
+  qualifiers: Record<string, string>;
+}
+
+function getSourceFieldMeta(field: Record<string, unknown> | undefined): SourceFieldMeta | null {
+  const sourceSpec = parseBlueprintSourceSpec(field?.source);
+  if (!sourceSpec) return null;
+  if (!field?.source || typeof field.source !== "object" || Array.isArray(field.source)) return null;
+  const raw = field.source as Record<string, unknown>;
+  const labelsRaw = raw.label;
+  const labelsList = Array.isArray(labelsRaw)
+    ? labelsRaw.map((entry) => String(entry).trim()).filter(Boolean)
+    : typeof labelsRaw === "string"
+      ? labelsRaw.split(",").map((entry) => entry.trim()).filter(Boolean)
+      : [];
+  const qualifierKeys = Array.isArray(raw.qualifiers)
+    ? raw.qualifiers.map((entry) => String(entry).trim()).filter(Boolean)
+    : [];
+  return {
+    target: sourceSpec.target,
+    targetKey: sourceSpec.targetKey,
+    labels: [labelsList[0] ?? "", labelsList[1] ?? labelsList[0] ?? ""],
+    qualifierKeys,
+  };
+}
+
+function defaultSourceOverride(meta: SourceFieldMeta): SourceOverrideState {
+  const qualifiers: Record<string, string> = {};
+  meta.qualifierKeys.forEach((key) => {
+    qualifiers[key] = "";
+  });
+  return {
+    labelForward: meta.labels[0],
+    labelBackward: meta.labels[1],
+    qualifiers,
+  };
+}
+
+function formatSourceOverrideHint(override: SourceOverrideState, qualifierKeys: string[]): string {
+  const forward = override.labelForward.trim() || "none";
+  const backward = override.labelBackward.trim() || "none";
+  const qualifiers = qualifierKeys.length > 0
+    ? qualifierKeys
+      .map((key) => `${key}: ${(override.qualifiers[key] ?? "").trim() || "none"}`)
+      .join(" | ")
+    : "none";
+  return `Forward: ${forward} | Backward: ${backward} | Qualifiers: ${qualifiers}`;
+}
+
+function buildSourceReferenceObject(
+  raw: unknown,
+  _meta: SourceFieldMeta,
+  override: SourceOverrideState,
+): Record<string, unknown> | null {
+  const value = getReferenceStoredValue(raw);
+  if (!value) return null;
+  const labels = [override.labelForward.trim(), override.labelBackward.trim()].filter(Boolean);
+  const qualifiers: Record<string, string> = {};
+  Object.entries(override.qualifiers).forEach(([k, v]) => {
+    qualifiers[k] = String(v ?? "");
+  });
+  const payload: Record<string, unknown> = { value };
+  if (labels.length > 0) payload.label = labels;
+  if (Object.keys(qualifiers).length > 0) payload.qualifiers = qualifiers;
+  return payload;
 }
 
 /** Value persisted on the document: strip optional `id:` prefix from blueprint option keys. */
@@ -665,15 +741,73 @@ export default function FormPut({
   );
 
   const field = resolveField(blueprint, selectedKey);
+  const fieldSourceKey = useMemo(() => {
+    try {
+      return JSON.stringify(field?.source ?? null);
+    } catch {
+      return String(field?.source ?? "");
+    }
+  }, [field?.source]);
+  const sourceMeta = useMemo(() => getSourceFieldMeta(field), [fieldSourceKey]);
+  const selectedValueKey = useMemo(() => {
+    try {
+      return JSON.stringify(selectedValue);
+    } catch {
+      return String(selectedValue ?? "");
+    }
+  }, [selectedValue]);
   const label =
     (typeof field?.label === "string" && field.label) || selectedKey;
   const typeHint =
     typeof field?.type === "string" ? field.type : undefined;
   const fieldType = typeof field?.type === "string" ? field.type : "";
+  const [sourceOverrides, setSourceOverrides] = useState<SourceOverrideState[]>([]);
+  const [selectEntries, setSelectEntries] = useState<string[]>([""]);
 
   useEffect(() => {
     setState(buildEditState(selectedKey, selectedValue, blueprint));
   }, [selectedKey, selectedValue, blueprint]);
+
+  useEffect(() => {
+    if (state.kind === "enum") {
+      setSelectEntries([state.valueKey || ""]);
+    } else if (state.kind === "enum-multi") {
+      setSelectEntries(state.valueKeys.length > 0 ? state.valueKeys : [""]);
+    } else {
+      setSelectEntries([""]);
+    }
+  }, [state.kind, state.kind === "enum" ? state.valueKey : "", state.kind === "enum-multi" ? state.valueKeys.join("|") : ""]);
+
+  useEffect(() => {
+    if (!sourceMeta) {
+      setSourceOverrides([]);
+      return;
+    }
+    const defaults = defaultSourceOverride(sourceMeta);
+    const rawValues = Array.isArray(selectedValue) ? selectedValue : [selectedValue];
+    const nextOverrides = (rawValues.length > 0 ? rawValues : [undefined]).map((entry) => {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const ref = entry as Record<string, unknown>;
+        const labelsRaw = ref.label;
+        const labels = Array.isArray(labelsRaw)
+          ? labelsRaw.map((item) => String(item).trim()).filter(Boolean)
+          : [];
+        const qualifiersRaw = ref.qualifiers;
+        const qualifiersFromValue = qualifiersRaw && typeof qualifiersRaw === "object" && !Array.isArray(qualifiersRaw)
+          ? Object.fromEntries(
+              Object.entries(qualifiersRaw as Record<string, unknown>).map(([k, v]) => [k, String(v ?? "")]),
+            )
+          : {};
+        return {
+          labelForward: labels[0] ?? defaults.labelForward,
+          labelBackward: labels[1] ?? defaults.labelBackward,
+          qualifiers: { ...defaults.qualifiers, ...qualifiersFromValue },
+        };
+      }
+      return defaults;
+    });
+    setSourceOverrides(nextOverrides);
+  }, [sourceMeta, selectedKey, selectedValueKey]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -681,7 +815,7 @@ export default function FormPut({
     if (
       state.kind === "enum" &&
       !state.allowEmpty &&
-      state.valueKey === ""
+      (selectEntries[0] ?? "") === ""
     ) {
       toast({
         title: "Required",
@@ -690,7 +824,7 @@ export default function FormPut({
       });
       return;
     }
-    if (state.kind === "enum-multi" && state.required && state.valueKeys.length === 0) {
+    if (state.kind === "enum-multi" && state.required && selectEntries.filter((entry) => entry.trim().length > 0).length === 0) {
       toast({
         title: "Required",
         description: "Please select at least one value for this field.",
@@ -713,7 +847,32 @@ export default function FormPut({
 
     let payload: Record<string, unknown>;
     try {
-      payload = valueFromEditState(state, selectedKey, fieldType);
+      if (state.kind === "enum" || state.kind === "enum-multi") {
+        const cleanedEntries = selectEntries.map((entry) => entry.trim());
+        if (sourceMeta) {
+          const values = (state.kind === "enum-multi" ? cleanedEntries : [cleanedEntries[0] ?? ""])
+            .filter((entry) => entry.length > 0);
+          const refs = values
+            .map((entry, index) =>
+              buildSourceReferenceObject(
+                entry,
+                sourceMeta,
+                sourceOverrides[index] ?? defaultSourceOverride(sourceMeta),
+              ),
+            )
+            .filter((entry): entry is Record<string, unknown> => entry !== null);
+          payload = { [selectedKey]: state.kind === "enum-multi" ? refs : (refs[0] ?? "") };
+        } else {
+          payload = {
+            [selectedKey]:
+              state.kind === "enum-multi"
+                ? cleanedEntries.filter((entry) => entry.length > 0)
+                : (cleanedEntries[0] ?? ""),
+          };
+        }
+      } else {
+        payload = valueFromEditState(state, selectedKey, fieldType);
+      }
     } catch (e) {
       toast({
         title: "Invalid value",
@@ -852,35 +1011,38 @@ export default function FormPut({
       {state.kind === "string-multi" && (
         <div className="space-y-2">
           {state.values.map((value, index) => (
-            <div key={`${selectedKey}-${index}`} className="flex gap-2">
-              {state.multiline ? (
-                <Textarea
-                  id={`put-${selectedKey}-${index}`}
-                  name={selectedKey}
-                  value={value}
-                  rows={4}
-                  onChange={(e) => {
-                    const next = [...state.values];
-                    next[index] = e.target.value;
-                    setState({ kind: "string-multi", values: next, multiline: true });
-                  }}
-                />
-              ) : (
-                <Input
-                  id={`put-${selectedKey}-${index}`}
-                  name={selectedKey}
-                  value={value}
-                  onChange={(e) => {
-                    const next = [...state.values];
-                    next[index] = e.target.value;
-                    setState({ kind: "string-multi", values: next, multiline: false });
-                  }}
-                />
-              )}
+            <div key={`${selectedKey}-${index}`} className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                {state.multiline ? (
+                  <Textarea
+                    id={`put-${selectedKey}-${index}`}
+                    name={selectedKey}
+                    value={value}
+                    rows={4}
+                    onChange={(e) => {
+                      const next = [...state.values];
+                      next[index] = e.target.value;
+                      setState({ kind: "string-multi", values: next, multiline: true });
+                    }}
+                  />
+                ) : (
+                  <Input
+                    id={`put-${selectedKey}-${index}`}
+                    name={selectedKey}
+                    value={value}
+                    onChange={(e) => {
+                      const next = [...state.values];
+                      next[index] = e.target.value;
+                      setState({ kind: "string-multi", values: next, multiline: false });
+                    }}
+                  />
+                )}
+              </div>
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                size="icon"
+                className="text-red-600 hover:text-red-700"
                 onClick={() => {
                   const next = state.values.filter((_, currentIndex) => currentIndex !== index);
                   setState({
@@ -889,15 +1051,16 @@ export default function FormPut({
                     multiline: state.multiline,
                   });
                 }}
+                aria-label="Remove value"
               >
-                -
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))}
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="icon"
             onClick={() =>
               setState({
                 kind: "string-multi",
@@ -905,8 +1068,9 @@ export default function FormPut({
                 multiline: state.multiline,
               })
             }
+            aria-label="Add value"
           >
-            Add value
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
       )}
@@ -928,40 +1092,45 @@ export default function FormPut({
       {state.kind === "datetime-multi" && (
         <div className="space-y-2">
           {state.values.map((value, index) => (
-            <div key={`${selectedKey}-datetime-${index}`} className="space-y-2">
-              <Input
-                id={`put-${selectedKey}-datetime-${index}`}
-                type="datetime-local"
-                value={toDatetimeLocalValue(value)}
-                onChange={(e) => {
-                  const next = [...state.values];
-                  next[index] = e.target.value;
-                  setState({ kind: "datetime-multi", values: next });
-                }}
-              />
-              <p className="text-xs text-muted-foreground break-all">
-                {value || "YYYY-MM-DDTHH:mm"}
-              </p>
+            <div key={`${selectedKey}-datetime-${index}`} className="flex items-start gap-2">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Input
+                  id={`put-${selectedKey}-datetime-${index}`}
+                  type="datetime-local"
+                  value={toDatetimeLocalValue(value)}
+                  onChange={(e) => {
+                    const next = [...state.values];
+                    next[index] = e.target.value;
+                    setState({ kind: "datetime-multi", values: next });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground break-all">
+                  {value || "YYYY-MM-DDTHH:mm"}
+                </p>
+              </div>
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                size="icon"
+                className="text-red-600 hover:text-red-700"
                 onClick={() => {
                   const next = state.values.filter((_, currentIndex) => currentIndex !== index);
                   setState({ kind: "datetime-multi", values: next.length ? next : [""] });
                 }}
+                aria-label="Remove value"
               >
-                -
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))}
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="icon"
             onClick={() => setState({ kind: "datetime-multi", values: [...state.values, ""] })}
+            aria-label="Add value"
           >
-            Add value
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
       )}
@@ -983,40 +1152,45 @@ export default function FormPut({
       {state.kind === "date-multi" && (
         <div className="space-y-2">
           {state.values.map((value, index) => (
-            <div key={`${selectedKey}-date-${index}`} className="space-y-2">
-              <Input
-                id={`put-${selectedKey}-date-${index}`}
-                type="date"
-                value={toDateValue(value)}
-                onChange={(e) => {
-                  const next = [...state.values];
-                  next[index] = e.target.value;
-                  setState({ kind: "date-multi", values: next });
-                }}
-              />
-              <p className="text-xs text-muted-foreground break-all">
-                {value || "YYYY-MM-DD"}
-              </p>
+            <div key={`${selectedKey}-date-${index}`} className="flex items-start gap-2">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Input
+                  id={`put-${selectedKey}-date-${index}`}
+                  type="date"
+                  value={toDateValue(value)}
+                  onChange={(e) => {
+                    const next = [...state.values];
+                    next[index] = e.target.value;
+                    setState({ kind: "date-multi", values: next });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground break-all">
+                  {value || "YYYY-MM-DD"}
+                </p>
+              </div>
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                size="icon"
+                className="text-red-600 hover:text-red-700"
                 onClick={() => {
                   const next = state.values.filter((_, currentIndex) => currentIndex !== index);
                   setState({ kind: "date-multi", values: next.length ? next : [""] });
                 }}
+                aria-label="Remove value"
               >
-                -
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))}
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="icon"
             onClick={() => setState({ kind: "date-multi", values: [...state.values, ""] })}
+            aria-label="Add value"
           >
-            Add value
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
       )}
@@ -1038,40 +1212,45 @@ export default function FormPut({
       {state.kind === "time-multi" && (
         <div className="space-y-2">
           {state.values.map((value, index) => (
-            <div key={`${selectedKey}-time-${index}`} className="space-y-2">
-              <Input
-                id={`put-${selectedKey}-time-${index}`}
-                type="time"
-                value={toTimeValue(value)}
-                onChange={(e) => {
-                  const next = [...state.values];
-                  next[index] = e.target.value;
-                  setState({ kind: "time-multi", values: next });
-                }}
-              />
-              <p className="text-xs text-muted-foreground break-all">
-                {value || "HH:mm"}
-              </p>
+            <div key={`${selectedKey}-time-${index}`} className="flex items-start gap-2">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Input
+                  id={`put-${selectedKey}-time-${index}`}
+                  type="time"
+                  value={toTimeValue(value)}
+                  onChange={(e) => {
+                    const next = [...state.values];
+                    next[index] = e.target.value;
+                    setState({ kind: "time-multi", values: next });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground break-all">
+                  {value || "HH:mm"}
+                </p>
+              </div>
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                size="icon"
+                className="text-red-600 hover:text-red-700"
                 onClick={() => {
                   const next = state.values.filter((_, currentIndex) => currentIndex !== index);
                   setState({ kind: "time-multi", values: next.length ? next : [""] });
                 }}
+                aria-label="Remove value"
               >
-                -
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))}
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="icon"
             onClick={() => setState({ kind: "time-multi", values: [...state.values, ""] })}
+            aria-label="Add value"
           >
-            Add value
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
       )}
@@ -1124,42 +1303,46 @@ export default function FormPut({
             const start = toDateValue(startRaw);
             const end = toDateValue(endRaw);
             return (
-              <div key={`${selectedKey}-daterange-${index}`} className="space-y-2">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Input
-                    id={`put-${selectedKey}-daterange-start-${index}`}
-                    type="date"
-                    value={start}
-                    onChange={(e) => {
-                      const next = [...state.values];
-                      next[index] = formatRangeValue(e.target.value, end);
-                      setState({ kind: "daterange-multi", values: next });
-                    }}
-                  />
-                  <Input
-                    id={`put-${selectedKey}-daterange-end-${index}`}
-                    type="date"
-                    value={end}
-                    onChange={(e) => {
-                      const next = [...state.values];
-                      next[index] = formatRangeValue(start, e.target.value);
-                      setState({ kind: "daterange-multi", values: next });
-                    }}
-                  />
+              <div key={`${selectedKey}-daterange-${index}`} className="flex items-start gap-2">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Input
+                      id={`put-${selectedKey}-daterange-start-${index}`}
+                      type="date"
+                      value={start}
+                      onChange={(e) => {
+                        const next = [...state.values];
+                        next[index] = formatRangeValue(e.target.value, end);
+                        setState({ kind: "daterange-multi", values: next });
+                      }}
+                    />
+                    <Input
+                      id={`put-${selectedKey}-daterange-end-${index}`}
+                      type="date"
+                      value={end}
+                      onChange={(e) => {
+                        const next = [...state.values];
+                        next[index] = formatRangeValue(start, e.target.value);
+                        setState({ kind: "daterange-multi", values: next });
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground break-all">
+                    {value || "YYYY-MM-DD - YYYY-MM-DD"}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground break-all">
-                  {value || "YYYY-MM-DD - YYYY-MM-DD"}
-                </p>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon"
+                  className="text-red-600 hover:text-red-700"
                   onClick={() => {
                     const next = state.values.filter((_, currentIndex) => currentIndex !== index);
                     setState({ kind: "daterange-multi", values: next.length ? next : [""] });
                   }}
+                  aria-label="Remove value"
                 >
-                  -
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             );
@@ -1167,10 +1350,11 @@ export default function FormPut({
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="icon"
             onClick={() => setState({ kind: "daterange-multi", values: [...state.values, ""] })}
+            aria-label="Add value"
           >
-            Add value
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
       )}
@@ -1223,42 +1407,46 @@ export default function FormPut({
             const start = toTimeValue(startRaw);
             const end = toTimeValue(endRaw);
             return (
-              <div key={`${selectedKey}-timerange-${index}`} className="space-y-2">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Input
-                    id={`put-${selectedKey}-timerange-start-${index}`}
-                    type="time"
-                    value={start}
-                    onChange={(e) => {
-                      const next = [...state.values];
-                      next[index] = formatRangeValue(e.target.value, end);
-                      setState({ kind: "timerange-multi", values: next });
-                    }}
-                  />
-                  <Input
-                    id={`put-${selectedKey}-timerange-end-${index}`}
-                    type="time"
-                    value={end}
-                    onChange={(e) => {
-                      const next = [...state.values];
-                      next[index] = formatRangeValue(start, e.target.value);
-                      setState({ kind: "timerange-multi", values: next });
-                    }}
-                  />
+              <div key={`${selectedKey}-timerange-${index}`} className="flex items-start gap-2">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Input
+                      id={`put-${selectedKey}-timerange-start-${index}`}
+                      type="time"
+                      value={start}
+                      onChange={(e) => {
+                        const next = [...state.values];
+                        next[index] = formatRangeValue(e.target.value, end);
+                        setState({ kind: "timerange-multi", values: next });
+                      }}
+                    />
+                    <Input
+                      id={`put-${selectedKey}-timerange-end-${index}`}
+                      type="time"
+                      value={end}
+                      onChange={(e) => {
+                        const next = [...state.values];
+                        next[index] = formatRangeValue(start, e.target.value);
+                        setState({ kind: "timerange-multi", values: next });
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground break-all">
+                    {value || "HH:mm - HH:mm"}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground break-all">
-                  {value || "HH:mm - HH:mm"}
-                </p>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon"
+                  className="text-red-600 hover:text-red-700"
                   onClick={() => {
                     const next = state.values.filter((_, currentIndex) => currentIndex !== index);
                     setState({ kind: "timerange-multi", values: next.length ? next : [""] });
                   }}
+                  aria-label="Remove value"
                 >
-                  -
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             );
@@ -1266,49 +1454,253 @@ export default function FormPut({
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="icon"
             onClick={() => setState({ kind: "timerange-multi", values: [...state.values, ""] })}
+            aria-label="Add value"
           >
-            Add value
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
       )}
 
       {state.kind === "enum" && (
-        <SearchableSelect
-          options={state.options}
-          value={state.valueKey}
-          onChange={(next) => {
-            const nextValue = String(next);
-            setState({
-              kind: "enum",
-              valueKey: nextValue === ENUM_EMPTY_VALUE ? "" : nextValue,
-              options: state.options,
-              allowEmpty: state.allowEmpty,
-            });
-          }}
-          multiple={false}
-          placeholder="Select..."
-          allowEmpty={state.allowEmpty}
-          emptyLabel="None"
-        />
+        <div className="space-y-2">
+          {selectEntries.map((entryValue, index) => {
+            const override = sourceMeta
+              ? (sourceOverrides[index] ?? defaultSourceOverride(sourceMeta))
+              : null;
+            return (
+              <div key={`${selectedKey}-enum-${index}`} className="space-y-2 rounded-md border p-2">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <SearchableSelect
+                    options={state.options}
+                    value={entryValue}
+                    onChange={(next) => {
+                      const nextValue = String(Array.isArray(next) ? next[0] ?? "" : next);
+                      const nextEntries = [...selectEntries];
+                      nextEntries[index] = nextValue === ENUM_EMPTY_VALUE ? "" : nextValue;
+                      setSelectEntries(nextEntries);
+                      setState({
+                        kind: "enum",
+                        valueKey: nextEntries[0] ?? "",
+                        options: state.options,
+                        allowEmpty: state.allowEmpty,
+                      });
+                    }}
+                    multiple={false}
+                    placeholder="Select..."
+                    allowEmpty={state.allowEmpty}
+                    emptyLabel="None"
+                  />
+                  {sourceMeta && override && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" size="icon" aria-label="Relationship details">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-96 space-y-3" align="start">
+                        <p className="text-xs text-muted-foreground">Override edge labels and qualifiers.</p>
+                        <div className="grid gap-2">
+                          <Label htmlFor={`${selectedKey}-${index}-label-forward`} className="text-xs">Forward label</Label>
+                          <Input
+                            id={`${selectedKey}-${index}-label-forward`}
+                            value={override.labelForward}
+                            onChange={(event) =>
+                              setSourceOverrides((prev) => {
+                                const next = [...prev];
+                                next[index] = { ...override, labelForward: event.target.value };
+                                return next;
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor={`${selectedKey}-${index}-label-backward`} className="text-xs">Backward label</Label>
+                          <Input
+                            id={`${selectedKey}-${index}-label-backward`}
+                            value={override.labelBackward}
+                            onChange={(event) =>
+                              setSourceOverrides((prev) => {
+                                const next = [...prev];
+                                next[index] = { ...override, labelBackward: event.target.value };
+                                return next;
+                              })
+                            }
+                          />
+                        </div>
+                        {sourceMeta.qualifierKeys.map((qualifierKey) => (
+                          <div key={`${selectedKey}-${index}-qualifier-${qualifierKey}`} className="grid gap-2">
+                            <Label htmlFor={`${selectedKey}-${index}-qualifier-${qualifierKey}`} className="text-xs">
+                              Qualifier: {qualifierKey}
+                            </Label>
+                            <Input
+                              id={`${selectedKey}-${index}-qualifier-${qualifierKey}`}
+                              value={override.qualifiers[qualifierKey] ?? ""}
+                              onChange={(event) =>
+                                setSourceOverrides((prev) => {
+                                  const next = [...prev];
+                                  next[index] = {
+                                    ...override,
+                                    qualifiers: {
+                                      ...override.qualifiers,
+                                      [qualifierKey]: event.target.value,
+                                    },
+                                  };
+                                  return next;
+                                })
+                              }
+                            />
+                          </div>
+                        ))}
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+                {sourceMeta && override && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatSourceOverrideHint(override, sourceMeta.qualifierKeys)}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {state.kind === "enum-multi" && (
-        <SearchableSelect
-          options={state.options}
-          value={state.valueKeys}
-          onChange={(next) =>
-            setState({
-              kind: "enum-multi",
-              valueKeys: Array.isArray(next) ? next.map((entry) => String(entry)) : [String(next)],
-              options: state.options,
-              required: state.required,
-            })
-          }
-          multiple
-          placeholder="Select options..."
-        />
+        <div className="space-y-2">
+          {selectEntries.map((entryValue, index) => {
+            const override = sourceMeta
+              ? (sourceOverrides[index] ?? defaultSourceOverride(sourceMeta))
+              : null;
+            return (
+              <div key={`${selectedKey}-enum-multi-${index}`} className="space-y-2 rounded-md border p-2">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <SearchableSelect
+                      options={state.options}
+                      value={entryValue}
+                      onChange={(next) => {
+                        const nextValue = String(Array.isArray(next) ? next[0] ?? "" : next);
+                        const nextEntries = [...selectEntries];
+                        nextEntries[index] = nextValue;
+                        setSelectEntries(nextEntries);
+                        setState({
+                          kind: "enum-multi",
+                          valueKeys: nextEntries.filter((entry) => entry.trim().length > 0),
+                          options: state.options,
+                          required: state.required,
+                        });
+                      }}
+                      multiple={false}
+                      placeholder="Select..."
+                    />
+                    {sourceMeta && override && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button type="button" variant="outline" size="icon" aria-label="Relationship details">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-96 space-y-3" align="start">
+                          <p className="text-xs text-muted-foreground">Override edge labels and qualifiers.</p>
+                          <div className="grid gap-2">
+                            <Label htmlFor={`${selectedKey}-multi-${index}-label-forward`} className="text-xs">Forward label</Label>
+                            <Input
+                              id={`${selectedKey}-multi-${index}-label-forward`}
+                              value={override.labelForward}
+                              onChange={(event) =>
+                                setSourceOverrides((prev) => {
+                                  const next = [...prev];
+                                  next[index] = { ...override, labelForward: event.target.value };
+                                  return next;
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor={`${selectedKey}-multi-${index}-label-backward`} className="text-xs">Backward label</Label>
+                            <Input
+                              id={`${selectedKey}-multi-${index}-label-backward`}
+                              value={override.labelBackward}
+                              onChange={(event) =>
+                                setSourceOverrides((prev) => {
+                                  const next = [...prev];
+                                  next[index] = { ...override, labelBackward: event.target.value };
+                                  return next;
+                                })
+                              }
+                            />
+                          </div>
+                          {sourceMeta.qualifierKeys.map((qualifierKey) => (
+                            <div key={`${selectedKey}-multi-${index}-qualifier-${qualifierKey}`} className="grid gap-2">
+                              <Label htmlFor={`${selectedKey}-multi-${index}-qualifier-${qualifierKey}`} className="text-xs">
+                                Qualifier: {qualifierKey}
+                              </Label>
+                              <Input
+                                id={`${selectedKey}-multi-${index}-qualifier-${qualifierKey}`}
+                                value={override.qualifiers[qualifierKey] ?? ""}
+                                onChange={(event) =>
+                                  setSourceOverrides((prev) => {
+                                    const next = [...prev];
+                                    next[index] = {
+                                      ...override,
+                                      qualifiers: {
+                                        ...override.qualifiers,
+                                        [qualifierKey]: event.target.value,
+                                      },
+                                    };
+                                    return next;
+                                  })
+                                }
+                              />
+                            </div>
+                          ))}
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-red-600 hover:text-red-700"
+                    onClick={() => {
+                      const nextEntries = selectEntries.filter((_, currentIndex) => currentIndex !== index);
+                      const normalized = nextEntries.length > 0 ? nextEntries : [""];
+                      setSelectEntries(normalized);
+                      setSourceOverrides((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
+                      setState({
+                        kind: "enum-multi",
+                        valueKeys: normalized.filter((entry) => entry.trim().length > 0),
+                        options: state.options,
+                        required: state.required,
+                      });
+                    }}
+                    aria-label="Remove relationship"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                {sourceMeta && override && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatSourceOverrideHint(override, sourceMeta.qualifierKeys)}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            onClick={() => setSelectEntries([...selectEntries, ""])}
+            aria-label="Add relationship"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
       )}
 
       {state.kind === "number" && (
@@ -1358,40 +1750,45 @@ export default function FormPut({
       {state.kind === "json-multi" && (
         <div className="space-y-2">
           {state.values.map((value, index) => (
-            <div key={`${selectedKey}-json-${index}`} className="space-y-2">
-              <Textarea
-                id={`put-${selectedKey}-json-${index}`}
-                name={selectedKey}
-                value={value}
-                onChange={(e) => {
-                  const next = [...state.values];
-                  next[index] = e.target.value;
-                  setState({ kind: "json-multi", values: next });
-                }}
-                rows={10}
-                className="font-mono text-xs leading-relaxed"
-                spellCheck={false}
-              />
+            <div key={`${selectedKey}-json-${index}`} className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <Textarea
+                  id={`put-${selectedKey}-json-${index}`}
+                  name={selectedKey}
+                  value={value}
+                  onChange={(e) => {
+                    const next = [...state.values];
+                    next[index] = e.target.value;
+                    setState({ kind: "json-multi", values: next });
+                  }}
+                  rows={10}
+                  className="font-mono text-xs leading-relaxed"
+                  spellCheck={false}
+                />
+              </div>
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                size="icon"
+                className="text-red-600 hover:text-red-700"
                 onClick={() => {
                   const next = state.values.filter((_, currentIndex) => currentIndex !== index);
                   setState({ kind: "json-multi", values: next.length ? next : [""] });
                 }}
+                aria-label="Remove value"
               >
-                -
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))}
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="icon"
             onClick={() => setState({ kind: "json-multi", values: [...state.values, ""] })}
+            aria-label="Add value"
           >
-            Add value
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
       )}
