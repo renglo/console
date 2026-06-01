@@ -91,6 +91,16 @@ interface EdgeDefinition {
   incomingAlias?: string;
 }
 
+function toUpperSnake(raw: string): string {
+  return String(raw ?? "")
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase();
+}
+
 export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,portfolio,org,ring}: ItemPreviewProps) {
 
 
@@ -345,33 +355,48 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
         return [];
       }
       const fromBlueprint = typeof blueprint?.name === "string" ? blueprint.name : ring;
+      const indexes = (blueprint as { indexes?: { path?: unknown[] } } | undefined)?.indexes;
+      const idField =
+        Array.isArray(indexes?.path) && indexes.path.length > 0
+          ? String(indexes.path[0] ?? "_id").trim() || "_id"
+          : "_id";
       const edgeMap = new Map<string, EdgeDefinition>();
       for (const field of blueprint?.fields || []) {
         if (!field || typeof field !== "object" || field.name === undefined || field.name === null) {
           continue;
         }
-        const sourceSpec = parseBlueprintSourceSpec(field.source);
-        if (!sourceSpec) {
-          continue;
-        }
         const fieldName = String(field.name);
-        const implicitEdgeType = `${fromBlueprint}:${fieldName}:${sourceSpec.target}:${sourceSpec.targetKey}`;
-        const edgeTypes = [implicitEdgeType];
-        const sourceLabels =
-          field.source && typeof field.source === "object" && !Array.isArray(field.source)
-            ? (field.source as Record<string, unknown>).label
-            : undefined;
-        const sourceAliases = Array.isArray(sourceLabels)
-          ? [sourceLabels[0], sourceLabels[1]]
-          : [];
-        const aliases = Array.isArray(field.edges) && field.edges.length > 0 ? field.edges : sourceAliases;
-        for (const edgeType of edgeTypes) {
-          const current = edgeMap.get(edgeType) || { edgeType };
+        const sourceSpec = parseBlueprintSourceSpec(field.source);
+        if (sourceSpec) {
+          const implicitEdgeType = `${fromBlueprint}:${fieldName}:${sourceSpec.target}:${sourceSpec.targetKey}`;
+          const sourceLabels =
+            field.source && typeof field.source === "object" && !Array.isArray(field.source)
+              ? (field.source as Record<string, unknown>).label
+              : undefined;
+          const sourceAliases = Array.isArray(sourceLabels)
+            ? [sourceLabels[0], sourceLabels[1]]
+            : [];
+          const aliases = Array.isArray(field.edges) && field.edges.length > 0 ? field.edges : sourceAliases;
+          const current = edgeMap.get(implicitEdgeType) || { edgeType: implicitEdgeType };
           if (!current.outgoingAlias && typeof aliases[0] === "string") {
             current.outgoingAlias = aliases[0];
           }
           if (!current.incomingAlias && typeof aliases[1] === "string") {
             current.incomingAlias = aliases[1];
+          }
+          edgeMap.set(implicitEdgeType, current);
+        }
+
+        const literalEnabledRaw = (field as Record<string, unknown>).literal_edge;
+        const literalEnabled =
+          literalEnabledRaw === true ||
+          (typeof literalEnabledRaw === "string" &&
+            ["1", "true", "yes", "y", "on"].includes(literalEnabledRaw.trim().toLowerCase()));
+        if (literalEnabled) {
+          const edgeType = `${fromBlueprint}:${idField}:_literal:${fieldName}`;
+          const current = edgeMap.get(edgeType) || { edgeType };
+          if (!current.outgoingAlias) {
+            current.outgoingAlias = `HAS_${toUpperSnake(fieldName)}`;
           }
           edgeMap.set(edgeType, current);
         }
