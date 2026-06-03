@@ -39,6 +39,8 @@ import {
 import DialogPut from '@/components/console/dialog-put'
 import ImagePreview from "@/components/console/image-preview"
 import { formatBlueprintFieldValue } from "@/lib/blueprint-field-display"
+import RadialGraph from "../../../../extensions/data/ui/components/radial-graph"
+import { buildNodeEdgesRadialGraphModel } from "../../../../extensions/data/ui/components/radial-graph-models"
 import {
   getBlueprintIndexPathFieldSet,
   parseBlueprintSourceSpec,
@@ -108,7 +110,7 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
     const [data, setData] = useState<DataType>({});
 
     //const [loading, setLoading] = useState(true); // State to manage loading status
-    const [error, setError] = useState<Error | null>(null);
+    const [, setError] = useState<Error | null>(null);
     const [refresh, setRefresh] = useState(false);
     const [showCard, setShowCard] = useState(true);
     const [fieldsDictionary, setFieldsDictionary] = useState<FieldDictionary>({});
@@ -121,6 +123,11 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
     const indexPathFields = useMemo(
         () => getBlueprintIndexPathFieldSet(blueprint),
         [blueprint],
+    );
+
+    const radialModel = useMemo(
+      () => buildNodeEdgesRadialGraphModel(graphResponse, `${ring}/${selectedId || ""}`),
+      [graphResponse, ring, selectedId],
     );
 
     useEffect(() => {
@@ -549,15 +556,44 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
                     {graphError}
                   </div>
                 ) : null}
-                <div className="min-h-0 flex-1 overflow-auto rounded-md border bg-muted/20 p-3">
-                  <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">
-                    {graphLoading
-                      ? "Loading graph edges..."
-                      : graphResponse !== null
-                        ? JSON.stringify(graphResponse, null, 2)
-                        : "No graph query run yet."}
-                  </pre>
-                </div>
+                <Tabs defaultValue="radial" className="min-h-0 flex-1">
+                  <TabsList className="mb-2 w-fit shrink-0">
+                    <TabsTrigger value="radial">Radial graph</TabsTrigger>
+                    <TabsTrigger value="raw-json">Raw JSON</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="radial" className="min-h-0 flex-1 overflow-hidden mt-0 data-[state=inactive]:hidden">
+                    <div className="h-full min-h-0 overflow-auto rounded-md border bg-muted/20 p-3">
+                      {graphLoading ? (
+                        <div className="text-sm text-muted-foreground">Loading graph edges...</div>
+                      ) : graphResponse === null ? (
+                        <div className="text-sm text-muted-foreground">No graph query run yet.</div>
+                      ) : radialModel.nodes.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No connected incoming/outgoing edges for this node.</div>
+                      ) : (
+                        <RadialGraph
+                          nodes={radialModel.nodes}
+                          links={radialModel.links}
+                          currentNodeId={radialModel.centerId}
+                          ariaLabel="Radial graph for current node edges"
+                          edgeColorMode="direction"
+                          pillOpacity={0.9}
+                          labelAlong={0.72}
+                        />
+                      )}
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="raw-json" className="min-h-0 flex-1 overflow-hidden mt-0 data-[state=inactive]:hidden">
+                    <div className="max-h-[65vh] overflow-y-auto rounded-md border bg-muted/20 p-3">
+                      <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+                        {graphLoading
+                          ? "Loading graph edges..."
+                          : graphResponse !== null
+                            ? JSON.stringify(graphResponse, null, 2)
+                            : "No graph query run yet."}
+                      </pre>
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </DialogContent>
             </Dialog>
             
