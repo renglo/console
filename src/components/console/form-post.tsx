@@ -436,7 +436,6 @@ interface FormPostProps {
 
 interface SourceFieldMeta {
   target: string;
-  targetKey: string;
   labels: [string, string];
   qualifierKeys: string[];
 }
@@ -463,7 +462,6 @@ function getSourceFieldMeta(field: FieldDefinition): SourceFieldMeta | null {
     : [];
   return {
     target: sourceSpec.target,
-    targetKey: sourceSpec.targetKey,
     labels: [
       labelsList[0] ?? "",
       labelsList[1] ?? labelsList[0] ?? "",
@@ -504,7 +502,7 @@ function formatSourceOverrideHint(override: SourceOverrideState, qualifierKeys: 
   return `Forward: ${forward} | Backward: ${backward} | Qualifiers: ${qualifiers}`;
 }
 
-function extractReferenceId(raw: unknown, targetKey: string): string {
+function extractReferenceId(raw: unknown): string {
   if (raw === null || raw === undefined) return "";
   if (typeof raw === "object" && !Array.isArray(raw)) {
     const ref = raw as Record<string, unknown>;
@@ -516,11 +514,9 @@ function extractReferenceId(raw: unknown, targetKey: string): string {
       ref.value ??
       ref.id ??
       ref._id ??
-      ref[targetKey] ??
       nestedObj?.value ??
       nestedObj?.id ??
-      nestedObj?._id ??
-      nestedObj?.[targetKey];
+      nestedObj?._id;
     return candidate == null ? "" : String(candidate).trim();
   }
   return String(raw).trim();
@@ -531,7 +527,7 @@ function buildSourceReferenceObject(
   meta: SourceFieldMeta,
   override: SourceOverrideState,
 ): Record<string, unknown> | null {
-  const value = extractReferenceId(raw, meta.targetKey);
+  const value = extractReferenceId(raw);
   if (!value) return null;
   const labels = [override.labelForward.trim(), override.labelBackward.trim()].filter(Boolean);
   const qualifiers: Record<string, string> = {};
@@ -1109,7 +1105,7 @@ export default function FormPost({
                 : [formField.value]
             : [formField.value];
           const currentValues = currentRawValues.map((entry) =>
-            sourceMeta ? extractReferenceId(entry, sourceMeta.targetKey) : String(entry ?? ""),
+            sourceMeta ? extractReferenceId(entry) : String(entry ?? ""),
           );
           const normalizedValues = currentValues.length > 0 ? currentValues : [""];
           if (Object.keys(options).length > 0) {

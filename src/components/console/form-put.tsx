@@ -222,7 +222,6 @@ function getReferenceStoredValue(entry: unknown): string {
 
 interface SourceFieldMeta {
   target: string;
-  targetKey: string;
   labels: [string, string];
   qualifierKeys: string[];
 }
@@ -249,7 +248,6 @@ function getSourceFieldMeta(field: Record<string, unknown> | undefined): SourceF
     : [];
   return {
     target: sourceSpec.target,
-    targetKey: sourceSpec.targetKey,
     labels: [labelsList[0] ?? "", labelsList[1] ?? labelsList[0] ?? ""],
     qualifierKeys,
   };

@@ -22,7 +22,6 @@ interface Field {
 
 export interface BlueprintSourceSpec {
     target: string;
-    targetKey: string;
     targetLabelFields: string[];
     edgeType?: string;
     qualifiers: string[];
@@ -52,19 +51,36 @@ export function readReferenceValue(entry: unknown): string | null {
 
 export function parseBlueprintSourceSpec(source: unknown): BlueprintSourceSpec | null {
     if (typeof source === "string") {
-        const parts = source.split(":").map((p) => p.trim());
-        if (parts.length !== 3 || !parts[0] || !parts[1]) return null;
-        const labelFields = parts[2]
-            .split(",")
-            .map((token) => token.trim())
-            .filter(Boolean);
-        return {
-            target: parts[0],
-            targetKey: parts[1],
-            targetLabelFields: labelFields,
-            qualifiers: [],
-            dynamic: false,
-        };
+        const trimmed = source.trim();
+        if (!trimmed) return null;
+
+        // Legacy colon format is supported:
+        // "<target_blueprint>:<deprecated_target_key>:<preview_fields>"
+        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+            const parts = trimmed.split(":").map((p) => p.trim());
+            if (parts.length !== 3 || !parts[0]) return null;
+            const labelFields = parts[2]
+                .split(",")
+                .map((token) => token.trim())
+                .filter(Boolean);
+            return {
+                target: parts[0],
+                targetLabelFields: labelFields,
+                qualifiers: [],
+                dynamic: false,
+            };
+        }
+
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                return null;
+            }
+            source = parsed;
+        } catch {
+            // Legacy non-JSON string formats are intentionally unsupported.
+            return null;
+        }
     }
 
     if (!source || typeof source !== "object" || Array.isArray(source)) {
@@ -72,8 +88,7 @@ export function parseBlueprintSourceSpec(source: unknown): BlueprintSourceSpec |
     }
     const raw = source as Record<string, unknown>;
     const target = typeof raw.target === "string" ? raw.target.trim() : "";
-    const targetKey = typeof raw.target_key === "string" ? raw.target_key.trim() : "_id";
-    if (!target || !targetKey) return null;
+    if (!target) return null;
 
     const rawLabel = raw.preview;
     const targetLabelFields = Array.isArray(rawLabel)
@@ -87,7 +102,6 @@ export function parseBlueprintSourceSpec(source: unknown): BlueprintSourceSpec |
     const edgeType = typeof raw.type === "string" && raw.type.trim() ? raw.type.trim() : undefined;
     return {
         target,
-        targetKey,
         targetLabelFields,
         edgeType,
         qualifiers,
@@ -236,7 +250,7 @@ export const overloadBlueprint = async (
         const sourceSpec = parseBlueprintSourceSpec(field.source);
         if (sourceSpec) {
                 const x = sourceSpec.target;
-                const y = sourceSpec.targetKey;
+                const y = "_id";
                 const z = sourceSpec.targetLabelFields.length > 0
                     ? sourceSpec.targetLabelFields.join(",")
                     : "name";
