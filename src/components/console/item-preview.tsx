@@ -3,6 +3,7 @@ import {
     GitBranch,
     Lock,
     MoreVertical,
+    RefreshCw,
 } from "lucide-react"
   
 
@@ -605,6 +606,13 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
               <DropdownMenuContent align="end">
                 <DropdownMenuItem className="text-gray-300">Export</DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={!selectedId || !showCard}
+                  onClick={refreshAction}
+                >
+                  <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                  Refresh
+                </DropdownMenuItem>
                 <DropdownMenuItem
                     onClick={() => handleDeleteId(selectedId)}
                 >Trash</DropdownMenuItem>
