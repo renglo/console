@@ -3,6 +3,7 @@ import {
     GitBranch,
     Lock,
     MoreVertical,
+    RefreshCw,
 } from "lucide-react"
   
 
@@ -304,11 +305,9 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
               ref.value ??
               ref.id ??
               ref._id ??
-              ref[sourceSpec.targetKey] ??
               targetObj?.value ??
               targetObj?.id ??
-              targetObj?._id ??
-              targetObj?.[sourceSpec.targetKey];
+              targetObj?._id;
             return candidate == null ? "" : String(candidate).trim();
           }
           return String(entry).trim();
@@ -375,7 +374,7 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
         const fieldName = String(field.name);
         const sourceSpec = parseBlueprintSourceSpec(field.source);
         if (sourceSpec) {
-          const implicitEdgeType = `${fromBlueprint}:${fieldName}:${sourceSpec.target}:${sourceSpec.targetKey}`;
+          const implicitEdgeType = `${fromBlueprint}:${fieldName}:${sourceSpec.target}:_id`;
           const sourceLabels =
             field.source && typeof field.source === "object" && !Array.isArray(field.source)
               ? (field.source as Record<string, unknown>).label
@@ -607,6 +606,13 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
               <DropdownMenuContent align="end">
                 <DropdownMenuItem className="text-gray-300">Export</DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={!selectedId || !showCard}
+                  onClick={refreshAction}
+                >
+                  <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                  Refresh
+                </DropdownMenuItem>
                 <DropdownMenuItem
                     onClick={() => handleDeleteId(selectedId)}
                 >Trash</DropdownMenuItem>

@@ -552,7 +552,7 @@ export default function DataTable({
 
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-3">
+    <div className="flex h-full min-h-0 min-w-0 w-full flex-col gap-3">
       <form
         className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
         onSubmit={(e) => {
@@ -635,8 +635,8 @@ export default function DataTable({
         <p className="text-sm text-destructive">{error.message}</p>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto rounded-md border">
-        <Table>
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-md border">
+        <Table className="w-max min-w-full">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
