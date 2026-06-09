@@ -29,7 +29,7 @@ export interface BlueprintSourceSpec {
     dynamic: boolean;
 }
 
-function readReferenceValue(entry: unknown): string | null {
+export function readReferenceValue(entry: unknown): string | null {
     if (entry === null || entry === undefined) return null;
     if (typeof entry === "object" && !Array.isArray(entry)) {
         const ref = entry as Record<string, unknown>;
@@ -204,12 +204,17 @@ export function resolveDocumentTitle(
 
 // Declare the DataItem interface
 export interface DataItem {
-    _id: string; // Add other properties as needed
+    _id?: string; // Add other properties as needed
     [key: string]: any; // Adjust this to the specific structure of your data
 }
 
 // Async function to fetch data based on valid source and update blueprint
-export const overloadBlueprint = async (currentBlueprint: Blueprint, portfolio_id: string, org_id: string): Promise<Blueprint | null> => {
+export const overloadBlueprint = async (
+    currentBlueprint: Blueprint,
+    portfolio_id: string,
+    org_id: string,
+    options?: { eagerLoadSources?: boolean },
+): Promise<Blueprint | null> => {
     console.log('Running overloadBlueprint function');
 
     // Work with the blueprint passed from fetchBlueprint
@@ -225,6 +230,8 @@ export const overloadBlueprint = async (currentBlueprint: Blueprint, portfolio_i
         updatedBlueprint.sources = {};
     }
 
+    const eagerLoadSources = options?.eagerLoadSources !== false;
+
     for (const field of currentBlueprint.fields) {
         const sourceSpec = parseBlueprintSourceSpec(field.source);
         if (sourceSpec) {
@@ -236,6 +243,19 @@ export const overloadBlueprint = async (currentBlueprint: Blueprint, portfolio_i
                 // Generate "sources" object (legacy-compatible key for rich lookups)
                 if (field.name && typeof field.name === "string") {
                     updatedBlueprint.sources[field.name] = `${x}:${y}:${z}`;
+                }
+
+                // Skip repeated fetches for the same source target in the same overload run.
+                if (
+                    updatedBlueprint.rich[x] &&
+                    typeof updatedBlueprint.rich[x] === "object" &&
+                    Object.keys(updatedBlueprint.rich[x]).length > 0
+                ) {
+                    continue;
+                }
+
+                if (!eagerLoadSources) {
+                    continue;
                 }
 
                 // Generate "rich" object
@@ -281,6 +301,96 @@ export const overloadBlueprint = async (currentBlueprint: Blueprint, portfolio_i
     console.log(updatedBlueprint);
     return updatedBlueprint; // Return the updated blueprint
 }
+
+export const enrichBlueprintRichFromRows = async (
+    rows: DataItem[],
+    currentBlueprint: Blueprint,
+    portfolio_id: string,
+    org_id: string,
+): Promise<void> => {
+    if (!Array.isArray(rows) || rows.length === 0 || !currentBlueprint?.fields) return;
+
+    if (!currentBlueprint.rich) currentBlueprint.rich = {};
+    if (!currentBlueprint.sources) currentBlueprint.sources = {};
+
+    const targetToIds = new Map<
+        string,
+        { targetKey: string; labelKeys: string[]; ids: Set<string> }
+    >();
+
+    for (const field of currentBlueprint.fields) {
+        const sourceSpec = parseBlueprintSourceSpec(field.source);
+        if (!sourceSpec || !field?.name) continue;
+
+        const target = sourceSpec.target;
+        const targetKey = sourceSpec.targetKey || "_id";
+        const labelKeys = sourceSpec.targetLabelFields.length > 0 ? sourceSpec.targetLabelFields : ["name"];
+
+        currentBlueprint.sources[field.name] = `${target}:${targetKey}:${labelKeys.join(",")}`;
+
+        if (!targetToIds.has(target)) {
+            targetToIds.set(target, { targetKey, labelKeys, ids: new Set<string>() });
+        }
+        const bucket = targetToIds.get(target)!;
+        if (!bucket.targetKey) bucket.targetKey = targetKey;
+        if (!bucket.labelKeys.length) bucket.labelKeys = labelKeys;
+
+        const richMap = currentBlueprint.rich[target] ?? {};
+        for (const row of rows) {
+            if (!row || typeof row !== "object") continue;
+            const rawValue = row[field.name];
+            const entries = Array.isArray(rawValue) ? rawValue : rawValue == null ? [] : [rawValue];
+            for (const entry of entries) {
+                const refId = readReferenceValue(entry);
+                if (!refId) continue;
+                if (richMap[refId]) continue;
+                bucket.ids.add(refId);
+            }
+        }
+    }
+
+    for (const [target, info] of targetToIds.entries()) {
+        if (info.ids.size === 0) continue;
+        if (!currentBlueprint.rich[target]) currentBlueprint.rich[target] = {};
+        const richMap = currentBlueprint.rich[target];
+
+        const ids = Array.from(info.ids);
+        await Promise.all(
+            ids.map(async (id) => {
+                try {
+                    const response = await fetch(
+                        `${import.meta.env.VITE_API_URL}/_data/${portfolio_id}/${org_id}/${target}/${encodeURIComponent(id)}`,
+                        {
+                            method: "GET",
+                            headers: { Authorization: `Bearer ${sessionStorage.accessToken}` },
+                        },
+                    );
+                    if (!response.ok) return;
+                    const payload = await response.json();
+                    const item = Array.isArray(payload) ? payload[0] : payload;
+                    if (!item || typeof item !== "object") return;
+                    const rec = item as Record<string, unknown>;
+
+                    const resolvedIdRaw = rec[info.targetKey] ?? rec._id ?? id;
+                    const resolvedId = String(resolvedIdRaw ?? "").trim();
+                    if (!resolvedId) return;
+
+                    const labelParts = info.labelKeys
+                        .map((key) => rec[key])
+                        .filter((v) => v !== null && v !== undefined && String(v).trim() !== "")
+                        .map((v) => String(v).trim());
+                    const label =
+                        labelParts.join(", ") ||
+                        String(rec.name ?? rec.label ?? rec.title ?? resolvedId);
+
+                    richMap[resolvedId] = label;
+                } catch {
+                    // Best-effort enrichment only.
+                }
+            }),
+        );
+    }
+};
 
 // Export the replaceUUID function for use in other components
 export const replaceUUID = async (currentData: DataItem[], currentBlueprint: Blueprint): Promise<DataItem[]> => {
