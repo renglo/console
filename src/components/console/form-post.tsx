@@ -80,6 +80,12 @@ interface SearchableSelectProps {
   placeholder?: string;
   allowEmpty?: boolean;
   emptyLabel?: string;
+  searchQuery?: string;
+  onSearchQueryChange?: (value: string) => void;
+  onSearch?: () => void;
+  searching?: boolean;
+  searchError?: string;
+  searchPlaceholder?: string;
 }
 
 function formatJsonForEditor(value: unknown): string {
@@ -188,6 +194,12 @@ function SearchableSelect({
   placeholder,
   allowEmpty = false,
   emptyLabel = "None",
+  searchQuery,
+  onSearchQueryChange,
+  onSearch,
+  searching = false,
+  searchError = "",
+  searchPlaceholder = "Search by text",
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const selectedValues = Array.isArray(value)
@@ -219,6 +231,21 @@ function SearchableSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        {onSearch ? (
+          <div className="space-y-2 border-b p-2">
+            <div className="flex gap-2">
+              <Input
+                value={searchQuery ?? ""}
+                onChange={(event) => onSearchQueryChange?.(event.target.value)}
+                placeholder={searchPlaceholder}
+              />
+              <Button type="button" size="sm" onClick={onSearch} disabled={searching}>
+                {searching ? "Searching..." : "Search"}
+              </Button>
+            </div>
+            {searchError ? <p className="text-xs text-destructive">{searchError}</p> : null}
+          </div>
+        ) : null}
         <Command>
           <CommandInput placeholder="Search options..." />
           <CommandList>
@@ -522,6 +549,37 @@ function extractReferenceId(raw: unknown): string {
   return String(raw).trim();
 }
 
+function parseScopeFromDataPath(path: string): { portfolio: string; org: string } | null {
+  const match = path.match(/\/_data\/([^/]+)\/([^/]+)\//);
+  if (!match) return null;
+  return {
+    portfolio: decodeURIComponent(match[1]),
+    org: decodeURIComponent(match[2]),
+  };
+}
+
+function labelFromResolvedSearchHit(
+  hit: Record<string, unknown>,
+  labelFields: string[],
+): string {
+  const doc = hit.document && typeof hit.document === "object" && !Array.isArray(hit.document)
+    ? (hit.document as Record<string, unknown>)
+    : null;
+  const attrs = doc?.attributes && typeof doc.attributes === "object" && !Array.isArray(doc.attributes)
+    ? (doc.attributes as Record<string, unknown>)
+    : null;
+  if (!attrs) return "";
+
+  const parts = labelFields
+    .map((field) => attrs[field])
+    .filter((entry) => entry !== null && entry !== undefined && String(entry).trim() !== "")
+    .map((entry) => String(entry).trim());
+  if (parts.length > 0) return parts.join(", ");
+
+  const fallback = attrs.name ?? attrs.label ?? attrs.title;
+  return fallback == null ? "" : String(fallback).trim();
+}
+
 function buildSourceReferenceObject(
   raw: unknown,
   meta: SourceFieldMeta,
@@ -565,6 +623,12 @@ export default function FormPost({
   const [Rich, setRich] = useState<RichDefinition>({});
   const [file, setFile] = useState<File | null>(null);
   const [sourceOverrides, setSourceOverrides] = useState<Record<string, SourceOverrideState[]>>({});
+  const [sourceSearchDraftByField, setSourceSearchDraftByField] = useState<Record<string, string>>({});
+  const [sourceSearchLoadingByField, setSourceSearchLoadingByField] = useState<Record<string, boolean>>({});
+  const [sourceSearchErrorByField, setSourceSearchErrorByField] = useState<Record<string, string>>({});
+  const [sourceSearchOptionsByField, setSourceSearchOptionsByField] = useState<
+    Record<string, Record<string, string>>
+  >({});
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; // Get the uploaded file
@@ -575,6 +639,118 @@ export default function FormPost({
       alert("Please upload a valid image file");
     }
 
+  };
+
+  const runSourceSearch = async (field: FieldDefinition): Promise<void> => {
+    const sourceSpec = parseBlueprintSourceSpec(field.source);
+    if (!sourceSpec) return;
+
+    const query = String(sourceSearchDraftByField[field.name] ?? "").trim();
+    if (!query) {
+      setSourceSearchErrorByField((prev) => ({ ...prev, [field.name]: "Enter a search query." }));
+      return;
+    }
+
+    const scope = parseScopeFromDataPath(path);
+    if (!scope) {
+      setSourceSearchErrorByField((prev) => ({
+        ...prev,
+        [field.name]: "Could not resolve portfolio/org for search.",
+      }));
+      return;
+    }
+
+    setSourceSearchLoadingByField((prev) => ({ ...prev, [field.name]: true }));
+    setSourceSearchErrorByField((prev) => ({ ...prev, [field.name]: "" }));
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/_search/${encodeURIComponent(scope.portfolio)}/${encodeURIComponent(scope.org)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sessionStorage.accessToken}`,
+          },
+          body: JSON.stringify({
+            query,
+            limit: 40,
+            offset: 0,
+            filters: {
+              rings: [sourceSpec.target],
+              resolve: true,
+            },
+          }),
+        },
+      );
+
+      const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!response.ok || payload.success === false) {
+        throw new Error(String(payload.message || `Search failed (${response.status})`));
+      }
+
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      const nextOptions: Record<string, string> = {};
+      const missingDocIds: string[] = [];
+
+      for (const item of items) {
+        if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+        const hit = item as Record<string, unknown>;
+        const docId = String(hit.doc_id ?? "").trim();
+        if (!docId) continue;
+        const label = labelFromResolvedSearchHit(hit, sourceSpec.targetLabelFields);
+        if (label) {
+          nextOptions[docId] = label;
+        } else {
+          missingDocIds.push(docId);
+        }
+      }
+
+      if (missingDocIds.length > 0) {
+        const resolved = await Promise.allSettled(
+          missingDocIds.map(async (docId) => {
+            const docResponse = await fetch(
+              `${import.meta.env.VITE_API_URL}/_data/${encodeURIComponent(scope.portfolio)}/${encodeURIComponent(scope.org)}/${encodeURIComponent(sourceSpec.target)}/${encodeURIComponent(docId)}`,
+              {
+                method: "GET",
+                headers: { Authorization: `Bearer ${sessionStorage.accessToken}` },
+              },
+            );
+            if (!docResponse.ok) return null;
+            const docPayload = (await docResponse.json().catch(() => null)) as Record<string, unknown> | null;
+            if (!docPayload || typeof docPayload !== "object" || Array.isArray(docPayload)) return null;
+            const attrs = docPayload.attributes && typeof docPayload.attributes === "object" && !Array.isArray(docPayload.attributes)
+              ? (docPayload.attributes as Record<string, unknown>)
+              : docPayload;
+            const parts = sourceSpec.targetLabelFields
+              .map((fieldName) => attrs[fieldName])
+              .filter((entry) => entry !== null && entry !== undefined && String(entry).trim() !== "")
+              .map((entry) => String(entry).trim());
+            const label = parts.join(", ") || String(attrs.name ?? attrs.label ?? attrs.title ?? docId);
+            return { docId, label };
+          }),
+        );
+        resolved.forEach((entry) => {
+          if (entry.status === "fulfilled" && entry.value) {
+            nextOptions[entry.value.docId] = entry.value.label;
+          }
+        });
+      }
+
+      setSourceSearchOptionsByField((prev) => ({
+        ...prev,
+        [field.name]: { ...(prev[field.name] ?? {}), ...nextOptions },
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Search failed.";
+      setSourceSearchErrorByField((prev) => ({ ...prev, [field.name]: message }));
+      toast({
+        title: "Search failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setSourceSearchLoadingByField((prev) => ({ ...prev, [field.name]: false }));
+    }
   };
   
   
@@ -1096,7 +1272,13 @@ export default function FormPost({
     
         case "select":
           const sourceMeta = getSourceFieldMeta(field);
-          const options = resolveSelectOptions();
+          const sourceSpec = parseBlueprintSourceSpec(field.source);
+          const searchedOptions = sourceSearchOptionsByField[field.name] ?? {};
+          const options = { ...resolveSelectOptions(), ...searchedOptions };
+          const searchEnabled = Boolean(sourceSpec);
+          const searchQuery = sourceSearchDraftByField[field.name] ?? "";
+          const searchLoading = sourceSearchLoadingByField[field.name] ?? false;
+          const searchError = sourceSearchErrorByField[field.name] ?? "";
           const currentRawValues = isMultiple
             ? Array.isArray(formField.value)
               ? formField.value
@@ -1131,6 +1313,15 @@ export default function FormPost({
                             placeholder={field.hint}
                             allowEmpty={!field.required}
                             emptyLabel="None"
+                            searchQuery={searchEnabled ? searchQuery : undefined}
+                            onSearchQueryChange={searchEnabled
+                              ? (value) =>
+                                  setSourceSearchDraftByField((prev) => ({ ...prev, [field.name]: value }))
+                              : undefined}
+                            onSearch={searchEnabled ? () => void runSourceSearch(field) : undefined}
+                            searching={searchEnabled ? searchLoading : undefined}
+                            searchError={searchEnabled ? searchError : undefined}
+                            searchPlaceholder={searchEnabled ? `Search ${sourceSpec?.target}` : undefined}
                           />
                           {sourceMeta && sourceOverride ? (
                             <Popover>
