@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState, useEffect } from 'react';
 
-import { replaceUUID, isBlueprintTableField, enrichBlueprintRichFromRows } from '@/lib/console_utils';
+import { replaceUUID, isBlueprintTableField } from '@/lib/console_utils';
 
 
 import {
@@ -74,7 +74,7 @@ function generateReactType(fields:any) {
 
   
 interface RowData {
-  _id?: string;
+  _id: string;
   // Add more properties if necessary
 }
 
@@ -229,7 +229,7 @@ const tableFooter = {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
           <DropdownMenuItem
-            onClick={() => navigator.clipboard.writeText(String(row.original._id ?? ""))}
+            onClick={() => navigator.clipboard.writeText(row.original._id)}
           >
             Copy Item ID
           </DropdownMenuItem>
@@ -256,7 +256,6 @@ interface DataTableProps {
 
 // Define the type for your data items
 interface DataItem {
-  _id?: string;
   [key: string]: any; // Adjust this to the specific structure of your data
 }
 
@@ -323,11 +322,6 @@ export default function DataTable({
   const ring_id = ring;
   const listBase = `${import.meta.env.VITE_API_URL}/_data/${portfolio_id}/${org_id}/${ring_id}`;
 
-  const enrichAndReplaceRows = async (rawItems: DataItem[]): Promise<DataItem[]> => {
-    await enrichBlueprintRichFromRows(rawItems, blueprint, portfolio_id, org_id);
-    return replaceUUID(rawItems, blueprint);
-  };
-
   useEffect(() => {
     if (!blueprint?.fields?.length) return;
     try {
@@ -352,7 +346,7 @@ export default function DataTable({
           });
           const response = await dataResponse.json();
           const rawItems = response["items"] ?? [];
-          let rows = await enrichAndReplaceRows(rawItems);
+          let rows = await replaceUUID(rawItems, blueprint);
           const needle = appliedContent.trim().toLowerCase();
           rows = rows.filter((row: DataItem) =>
             JSON.stringify(row).toLowerCase().includes(needle)
@@ -376,7 +370,7 @@ export default function DataTable({
           if (one.ok) {
             const doc = await one.json();
             const arr = Array.isArray(doc) ? doc : [doc];
-            setData(await enrichAndReplaceRows(arr));
+            setData(await replaceUUID(arr, blueprint));
             return;
           }
 
@@ -394,7 +388,7 @@ export default function DataTable({
           });
           const qJson = await qRes.json();
           const qItems = qJson["items"] ?? [];
-          setData(await enrichAndReplaceRows(qItems));
+          setData(await replaceUUID(qItems, blueprint));
           return;
         }
       } catch (err) {
@@ -424,7 +418,7 @@ export default function DataTable({
         });
         const response = await dataResponse.json();
         const rawItems = response["items"] ?? [];
-        const rows = await enrichAndReplaceRows(rawItems);
+        const rows = await replaceUUID(rawItems, blueprint);
         if (cancelled) return;
         setCachedPages([rows]);
         setNextCursors([response["last_id"] ?? null]);
@@ -482,7 +476,7 @@ export default function DataTable({
       });
       const response = await dataResponse.json();
       const rawItems = response["items"] ?? [];
-      const rows = await enrichAndReplaceRows(rawItems);
+      const rows = await replaceUUID(rawItems, blueprint);
       setCachedPages((p) => [...p, rows]);
       setNextCursors((c) => [...c, response["last_id"] ?? null]);
       setPageIndex((i) => i + 1);
@@ -672,9 +666,7 @@ export default function DataTable({
                       ? "bg-muted/80"
                       : "cursor-pointer"
                   }
-                  onClick={() => {
-                    if (row.original._id) onSelectId(row.original._id);
-                  }}
+                  onClick={() => onSelectId(row.original._id)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

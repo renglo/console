@@ -43,11 +43,8 @@ import { formatBlueprintFieldValue } from "@/lib/blueprint-field-display"
 import RadialGraph from "../../../../extensions/data/ui/components/radial-graph"
 import { buildNodeEdgesRadialGraphModel } from "../../../../extensions/data/ui/components/radial-graph-models"
 import {
-  enrichBlueprintRichFromRows,
   getBlueprintIndexPathFieldSet,
-  isDanglingReference,
   parseBlueprintSourceSpec,
-  resolveDanglingReferenceLabel,
   resolveDocumentTitle,
 } from "@/lib/console_utils"
 
@@ -150,9 +147,6 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
                 },
             });
             const response = await dataResponse.json();
-            if (blueprint?.fields?.length) {
-              await enrichBlueprintRichFromRows([response], blueprint, portfolio, org);
-            }
             setData(response);
             setShowCard(true);
             } catch (err) {
@@ -165,7 +159,7 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
         };
 
         void fetchData();
-    }, [selectedId, portfolio, org, ring, refresh, blueprint]);
+    }, [selectedId, portfolio, org, ring, refresh]);
 
 
     useEffect(() => {
@@ -320,9 +314,6 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
         };
 
         const resolveReferenceLabel = (entry: unknown): string => {
-          if (isDanglingReference(entry)) {
-            return resolveDanglingReferenceLabel(entry, sourceSpec);
-          }
           const refId = resolveReferenceId(entry);
           if (refId && richMap && typeof richMap === "object" && refId in richMap) {
             return String(richMap[refId]);

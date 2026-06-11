@@ -23,13 +23,12 @@ interface Field {
 export interface BlueprintSourceSpec {
     target: string;
     targetLabelFields: string[];
-    targetKey?: string;
     edgeType?: string;
     qualifiers: string[];
     dynamic: boolean;
 }
 
-export function readReferenceValue(entry: unknown): string | null {
+function readReferenceValue(entry: unknown): string | null {
     if (entry === null || entry === undefined) return null;
     if (typeof entry === "object" && !Array.isArray(entry)) {
         const ref = entry as Record<string, unknown>;
@@ -48,120 +47,6 @@ export function readReferenceValue(entry: unknown): string | null {
     }
     const text = String(entry).trim();
     return text || null;
-}
-
-/** Synthetic graph targets that must never be fetched as documents. */
-export function isSyntheticReferenceId(refId: string | null | undefined): boolean {
-    const value = String(refId ?? "").trim();
-    return value.startsWith("_dangling/") || value.startsWith("_literal/");
-}
-
-/** Dangling links are placeholders for unresolved targets (status: dangling). */
-export function isDanglingReference(entry: unknown): boolean {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
-    const ref = entry as Record<string, unknown>;
-    const status = String(ref.status ?? "").trim().toLowerCase();
-    if (status === "dangling") return true;
-    return isSyntheticReferenceId(readReferenceValue(entry));
-}
-
-export function shouldEnrichReference(entry: unknown, refId: string | null): boolean {
-    if (!refId) return false;
-    if (isDanglingReference(entry)) return false;
-    if (isSyntheticReferenceId(refId)) return false;
-    return true;
-}
-
-export function resolveDanglingReferenceLabel(
-    entry: unknown,
-    sourceSpec?: Pick<BlueprintSourceSpec, "targetLabelFields"> | null,
-): string {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-        return readReferenceValue(entry) ?? "dangling";
-    }
-    const ref = entry as Record<string, unknown>;
-    const qualifiers =
-        ref.qualifiers && typeof ref.qualifiers === "object" && !Array.isArray(ref.qualifiers)
-            ? (ref.qualifiers as Record<string, unknown>)
-            : {};
-    const properties =
-        ref.properties && typeof ref.properties === "object" && !Array.isArray(ref.properties)
-            ? (ref.properties as Record<string, unknown>)
-            : {};
-
-    const labelFields = sourceSpec?.targetLabelFields?.length
-        ? sourceSpec.targetLabelFields
-        : ["provider", "domain", "element_type", "external_id"];
-
-    const parts = labelFields
-        .map((fieldName) => {
-            const qualKey = `to.${fieldName}`;
-            const candidate =
-                qualifiers[qualKey] ??
-                qualifiers[fieldName] ??
-                ref[fieldName] ??
-                properties[fieldName];
-            return candidate == null ? "" : String(candidate).trim();
-        })
-        .filter((part) => part.length > 0);
-
-    if (parts.length > 0) {
-        return parts.join(", ");
-    }
-
-    const elementType = properties.value ?? qualifiers["to.element_type"];
-    if (elementType != null && String(elementType).trim()) {
-        return `${String(elementType).trim()} (dangling)`;
-    }
-
-    return readReferenceValue(entry) ?? "dangling";
-}
-
-async function fetchReferenceDocumentLabel(
-    portfolio_id: string,
-    org_id: string,
-    target: string,
-    id: string,
-    targetKey: string,
-    labelKeys: string[],
-): Promise<{ resolvedId: string; label: string } | null> {
-    try {
-        const response = await fetch(
-            `${import.meta.env.VITE_API_URL}/_data/${portfolio_id}/${org_id}/${target}/${encodeURIComponent(id)}`,
-            {
-                method: "GET",
-                headers: { Authorization: `Bearer ${sessionStorage.accessToken}` },
-            },
-        );
-        if (!response.ok) return null;
-
-        let payload: unknown;
-        try {
-            payload = await response.json();
-        } catch {
-            return null;
-        }
-
-        const item = Array.isArray(payload) ? payload[0] : payload;
-        if (!item || typeof item !== "object") return null;
-        const rec = item as Record<string, unknown>;
-
-        const resolvedIdRaw = rec[targetKey] ?? rec._id ?? id;
-        const resolvedId = String(resolvedIdRaw ?? "").trim();
-        if (!resolvedId) return null;
-
-        const labelParts = labelKeys
-            .map((key) => rec[key])
-            .filter((v) => v !== null && v !== undefined && String(v).trim() !== "")
-            .map((v) => String(v).trim());
-        const label =
-            labelParts.join(", ") ||
-            String(rec.name ?? rec.label ?? rec.title ?? resolvedId);
-
-        return { resolvedId, label };
-    } catch {
-        return null;
-    }
 }
 
 export function parseBlueprintSourceSpec(source: unknown): BlueprintSourceSpec | null {
@@ -333,17 +218,12 @@ export function resolveDocumentTitle(
 
 // Declare the DataItem interface
 export interface DataItem {
-    _id?: string; // Add other properties as needed
+    _id: string; // Add other properties as needed
     [key: string]: any; // Adjust this to the specific structure of your data
 }
 
 // Async function to fetch data based on valid source and update blueprint
-export const overloadBlueprint = async (
-    currentBlueprint: Blueprint,
-    portfolio_id: string,
-    org_id: string,
-    options?: { eagerLoadSources?: boolean },
-): Promise<Blueprint | null> => {
+export const overloadBlueprint = async (currentBlueprint: Blueprint, portfolio_id: string, org_id: string): Promise<Blueprint | null> => {
     console.log('Running overloadBlueprint function');
 
     // Work with the blueprint passed from fetchBlueprint
@@ -359,8 +239,6 @@ export const overloadBlueprint = async (
         updatedBlueprint.sources = {};
     }
 
-    const eagerLoadSources = options?.eagerLoadSources !== false;
-
     for (const field of currentBlueprint.fields) {
         const sourceSpec = parseBlueprintSourceSpec(field.source);
         if (sourceSpec) {
@@ -372,19 +250,6 @@ export const overloadBlueprint = async (
                 // Generate "sources" object (legacy-compatible key for rich lookups)
                 if (field.name && typeof field.name === "string") {
                     updatedBlueprint.sources[field.name] = `${x}:${y}:${z}`;
-                }
-
-                // Skip repeated fetches for the same source target in the same overload run.
-                if (
-                    updatedBlueprint.rich[x] &&
-                    typeof updatedBlueprint.rich[x] === "object" &&
-                    Object.keys(updatedBlueprint.rich[x]).length > 0
-                ) {
-                    continue;
-                }
-
-                if (!eagerLoadSources) {
-                    continue;
                 }
 
                 // Generate "rich" object
@@ -431,88 +296,6 @@ export const overloadBlueprint = async (
     return updatedBlueprint; // Return the updated blueprint
 }
 
-export const enrichBlueprintRichFromRows = async (
-    rows: DataItem[],
-    currentBlueprint: Blueprint,
-    portfolio_id: string,
-    org_id: string,
-): Promise<void> => {
-    try {
-        if (!Array.isArray(rows) || rows.length === 0 || !currentBlueprint?.fields) return;
-
-        if (!currentBlueprint.rich) currentBlueprint.rich = {};
-        if (!currentBlueprint.sources) currentBlueprint.sources = {};
-
-        const targetToIds = new Map<
-            string,
-            { targetKey: string; labelKeys: string[]; ids: Set<string> }
-        >();
-
-        for (const field of currentBlueprint.fields) {
-            const sourceSpec = parseBlueprintSourceSpec(field.source);
-            if (!sourceSpec || !field?.name) continue;
-
-            const target = sourceSpec.target;
-            const targetKey = sourceSpec.targetKey || "_id";
-            const labelKeys = sourceSpec.targetLabelFields.length > 0 ? sourceSpec.targetLabelFields : ["name"];
-
-            currentBlueprint.sources[field.name] = `${target}:${targetKey}:${labelKeys.join(",")}`;
-
-            if (!targetToIds.has(target)) {
-                targetToIds.set(target, { targetKey, labelKeys, ids: new Set<string>() });
-            }
-            const bucket = targetToIds.get(target)!;
-            if (!bucket.targetKey) bucket.targetKey = targetKey;
-            if (!bucket.labelKeys.length) bucket.labelKeys = labelKeys;
-
-            const richMap = currentBlueprint.rich[target] ?? {};
-            for (const row of rows) {
-                if (!row || typeof row !== "object") continue;
-                const rawValue = row[field.name];
-                const entries = Array.isArray(rawValue) ? rawValue : rawValue == null ? [] : [rawValue];
-                for (const entry of entries) {
-                    const refId = readReferenceValue(entry);
-                    if (!shouldEnrichReference(entry, refId)) continue;
-                    if (richMap[refId!]) continue;
-                    bucket.ids.add(refId!);
-                }
-            }
-        }
-
-        for (const [target, info] of targetToIds.entries()) {
-            if (info.ids.size === 0) continue;
-            if (!currentBlueprint.rich[target]) currentBlueprint.rich[target] = {};
-            const richMap = currentBlueprint.rich[target];
-
-            const ids = Array.from(info.ids);
-            const results = await Promise.allSettled(
-                ids.map((id) =>
-                    fetchReferenceDocumentLabel(
-                        portfolio_id,
-                        org_id,
-                        target,
-                        id,
-                        info.targetKey,
-                        info.labelKeys,
-                    ),
-                ),
-            );
-
-            for (let index = 0; index < results.length; index += 1) {
-                const result = results[index];
-                if (result.status !== "fulfilled" || !result.value) continue;
-                const requestedId = ids[index];
-                richMap[result.value.resolvedId] = result.value.label;
-                if (requestedId !== result.value.resolvedId) {
-                    richMap[requestedId] = result.value.label;
-                }
-            }
-        }
-    } catch (error) {
-        console.error("Blueprint enrichment failed:", error);
-    }
-};
-
 // Export the replaceUUID function for use in other components
 export const replaceUUID = async (currentData: DataItem[], currentBlueprint: Blueprint): Promise<DataItem[]> => {
 
@@ -537,21 +320,14 @@ export const replaceUUID = async (currentData: DataItem[], currentBlueprint: Blu
                     if (Array.isArray(value)) {
                         updatedItem[key] = value.map((entry) =>
                             (() => {
-                                if (isDanglingReference(entry)) {
-                                    return resolveDanglingReferenceLabel(entry, sourceSpec);
-                                }
                                 const refValue = readReferenceValue(entry);
                                 if (!refValue) return entry;
                                 return richMap[refValue] ?? entry;
                             })()
                         );
                     } else {
-                        if (isDanglingReference(value)) {
-                            updatedItem[key] = resolveDanglingReferenceLabel(value, sourceSpec);
-                        } else {
-                            const refValue = readReferenceValue(value);
-                            updatedItem[key] = refValue ? (richMap[refValue] ?? value) : value;
-                        }
+                        const refValue = readReferenceValue(value);
+                        updatedItem[key] = refValue ? (richMap[refValue] ?? value) : value;
                     }
                 } else {
                     updatedItem[key] = value;
