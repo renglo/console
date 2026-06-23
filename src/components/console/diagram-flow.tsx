@@ -1,4 +1,4 @@
-import { sankey, sankeyCenter, sankeyLinkHorizontal, SankeyNodeMinimal } from "d3-sankey";
+import { sankey, sankeyJustify, sankeyLinkHorizontal, SankeyNodeMinimal } from "d3-sankey";
 import { useEffect } from "react";
 
 const MARGIN_Y = 25;
@@ -13,9 +13,10 @@ import { useState } from "react";
 
 // Define a custom type for the nodes
 type CustomSankeyNode = SankeyNodeMinimal<{}, {}> & {
-  name: string; // Add the name property
-  category: string; // Ensure category is included
-  color: number; // Ensure color is included
+  name: string;
+  category: string;
+  color: number;
+  order?: number;
 };
 
 
@@ -56,9 +57,17 @@ export default function FlowDiagram({ sankeyData }: { sankeyData: { nodes: Custo
       [MARGIN_X, MARGIN_Y],
       [width - MARGIN_X, height - MARGIN_Y],
     ])
-    .nodeId((node) => (node as CustomSankeyNode).name) // Type assertion to CustomSankeyNode
-    .nodeSort(() => 0) // Provide a function that returns 0 for no sorting
-    .nodeAlign(sankeyCenter); // Algorithm used to decide node position
+    .nodeId((node) => (node as CustomSankeyNode).name)
+    .nodeSort((a, b) => {
+      const left = a as CustomSankeyNode;
+      const right = b as CustomSankeyNode;
+      const orderDelta = (left.order ?? 0) - (right.order ?? 0);
+      if (orderDelta !== 0) {
+        return orderDelta;
+      }
+      return left.name.localeCompare(right.name);
+    })
+    .nodeAlign(sankeyJustify);
 
 
   // Compute nodes and links positions
@@ -135,8 +144,8 @@ export default function FlowDiagram({ sankeyData }: { sankeyData: { nodes: Custo
           fontSize={12}
         >
           <tspan>{(node as CustomSankeyNode).name}</tspan>
-          <tspan dy="1.2em" dx="-5em" fontSize="7">
-            (${Math.max(targetValue, sourceValue).toLocaleString()})
+          <tspan dy="1.2em" x={node.x0 < width / 2 ? node.x1 + 6 : node.x0 - 6} fontSize="9">
+            ({Math.max(targetValue, sourceValue).toLocaleString()})
           </tspan>
         </text>
       );
