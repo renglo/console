@@ -47,3 +47,7 @@ Add the name of the extension to the comma separated string
 VITE_EXTENSIONS=schd,data,<extension_name>
 ```
 
+## License
+
+This project is licensed under the MIT License. See [LICENSE.txt](LICENSE.txt) for details.
+
