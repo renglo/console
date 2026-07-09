@@ -101,7 +101,7 @@ export default function UserHome() {
                                     <div className="flex items-center flex-col w-16">
                                       
                                         <Avatarsq>
-                                            <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_docs/${p.portfolio_id}/${row['org_id']}/_thumbnails/${row['org_id']}.png`} />
+                                            <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_files/${p.portfolio_id}/${row['org_id']}/_thumbnails/${row['org_id']}.png`} />
                                             <AvatarsqFallback>{row['handle'].substring(0, 3)}</AvatarsqFallback>
                                         </Avatarsq>
                                         <span className="text-xxs whitespace-nowrap">{row['name'].substring(0, 13)}</span> 

@@ -90,7 +90,7 @@ export default function OrgSwitch({ refreshUp }: OrgSwitchProps) {
                 {selectedOrg === '_all' ? (
                     <AvatarsqImage src='/icons/Asterisk.svg' />
                 ) : (
-                    <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_docs/${p_portfolio}/${selectedOrg}/_thumbnails/${selectedOrg}.png`} />
+                    <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_files/${p_portfolio}/${selectedOrg}/_thumbnails/${selectedOrg}.png`} />
                 )}
                 
             </Avatarsq>
@@ -129,7 +129,7 @@ export default function OrgSwitch({ refreshUp }: OrgSwitchProps) {
                                       row.org_id === selectedOrg ? "opacity-100" : "opacity-30"
                                     )}
                                   >
-                                    <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_docs/${p_portfolio}/${row.org_id}/_thumbnails/${row.org_id}.png`} />
+                                    <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_files/${p_portfolio}/${row.org_id}/_thumbnails/${row.org_id}.png`} />
                                     <AvatarsqFallback>
                                       {row.handle.substring(0, 3)}
                                     </AvatarsqFallback>
