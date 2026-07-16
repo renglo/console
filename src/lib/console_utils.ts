@@ -24,8 +24,11 @@ export interface BlueprintSourceSpec {
     target: string;
     targetLabelFields: string[];
     edgeType?: string;
+    attributes: string[];
+    /** @deprecated use attributes */
     qualifiers: string[];
     dynamic: boolean;
+    allowExtras?: boolean;
 }
 
 function readReferenceValue(entry: unknown): string | null {
@@ -66,6 +69,7 @@ export function parseBlueprintSourceSpec(source: unknown): BlueprintSourceSpec |
             return {
                 target: parts[0],
                 targetLabelFields: labelFields,
+                attributes: [],
                 qualifiers: [],
                 dynamic: false,
             };
@@ -96,16 +100,22 @@ export function parseBlueprintSourceSpec(source: unknown): BlueprintSourceSpec |
         : typeof rawLabel === "string"
             ? rawLabel.split(",").map((token) => token.trim()).filter(Boolean)
             : [];
-    const qualifiers = Array.isArray(raw.qualifiers)
-        ? raw.qualifiers.map((token) => String(token).trim()).filter(Boolean)
-        : [];
+    const attributeKeysRaw = Array.isArray(raw.attributes)
+        ? raw.attributes
+        : Array.isArray(raw.qualifiers)
+            ? raw.qualifiers
+            : [];
+    const attributes = attributeKeysRaw.map((token) => String(token).trim()).filter(Boolean);
     const edgeType = typeof raw.type === "string" && raw.type.trim() ? raw.type.trim() : undefined;
     return {
         target,
         targetLabelFields,
         edgeType,
-        qualifiers,
+        attributes,
+        /** @deprecated use attributes */
+        qualifiers: attributes,
         dynamic: Boolean(raw.dynamic),
+        allowExtras: raw.allow_extras !== false,
     };
 }
 

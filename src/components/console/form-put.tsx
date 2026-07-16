@@ -223,13 +223,13 @@ function getReferenceStoredValue(entry: unknown): string {
 interface SourceFieldMeta {
   target: string;
   labels: [string, string];
-  qualifierKeys: string[];
+  attributeKeys: string[];
 }
 
 interface SourceOverrideState {
   labelForward: string;
   labelBackward: string;
-  qualifiers: Record<string, string>;
+  attributes: Record<string, string>;
 }
 
 function getSourceFieldMeta(field: Record<string, unknown> | undefined): SourceFieldMeta | null {
@@ -243,37 +243,40 @@ function getSourceFieldMeta(field: Record<string, unknown> | undefined): SourceF
     : typeof labelsRaw === "string"
       ? labelsRaw.split(",").map((entry) => entry.trim()).filter(Boolean)
       : [];
-  const qualifierKeys = Array.isArray(raw.qualifiers)
-    ? raw.qualifiers.map((entry) => String(entry).trim()).filter(Boolean)
-    : [];
+  const attributeKeysRaw = Array.isArray(raw.attributes)
+    ? raw.attributes
+    : Array.isArray(raw.qualifiers)
+      ? raw.qualifiers
+      : [];
+  const attributeKeys = attributeKeysRaw.map((entry) => String(entry).trim()).filter(Boolean);
   return {
     target: sourceSpec.target,
     labels: [labelsList[0] ?? "", labelsList[1] ?? labelsList[0] ?? ""],
-    qualifierKeys,
+    attributeKeys,
   };
 }
 
 function defaultSourceOverride(meta: SourceFieldMeta): SourceOverrideState {
-  const qualifiers: Record<string, string> = {};
-  meta.qualifierKeys.forEach((key) => {
-    qualifiers[key] = "";
+  const attributes: Record<string, string> = {};
+  meta.attributeKeys.forEach((key) => {
+    attributes[key] = "";
   });
   return {
     labelForward: meta.labels[0],
     labelBackward: meta.labels[1],
-    qualifiers,
+    attributes,
   };
 }
 
-function formatSourceOverrideHint(override: SourceOverrideState, qualifierKeys: string[]): string {
+function formatSourceOverrideHint(override: SourceOverrideState, attributeKeys: string[]): string {
   const forward = override.labelForward.trim() || "none";
   const backward = override.labelBackward.trim() || "none";
-  const qualifiers = qualifierKeys.length > 0
-    ? qualifierKeys
-      .map((key) => `${key}: ${(override.qualifiers[key] ?? "").trim() || "none"}`)
+  const attributes = attributeKeys.length > 0
+    ? attributeKeys
+      .map((key) => `${key}: ${(override.attributes[key] ?? "").trim() || "none"}`)
       .join(" | ")
     : "none";
-  return `Forward: ${forward} | Backward: ${backward} | Qualifiers: ${qualifiers}`;
+  return `Forward: ${forward} | Backward: ${backward} | Attributes: ${attributes}`;
 }
 
 function buildSourceReferenceObject(
@@ -284,13 +287,13 @@ function buildSourceReferenceObject(
   const value = getReferenceStoredValue(raw);
   if (!value) return null;
   const labels = [override.labelForward.trim(), override.labelBackward.trim()].filter(Boolean);
-  const qualifiers: Record<string, string> = {};
-  Object.entries(override.qualifiers).forEach(([k, v]) => {
-    qualifiers[k] = String(v ?? "");
+  const attributes: Record<string, string> = {};
+  Object.entries(override.attributes).forEach(([k, v]) => {
+    attributes[k] = String(v ?? "");
   });
   const payload: Record<string, unknown> = { value };
   if (labels.length > 0) payload.label = labels;
-  if (Object.keys(qualifiers).length > 0) payload.qualifiers = qualifiers;
+  if (Object.keys(attributes).length > 0) payload.attributes = attributes;
   return payload;
 }
 
@@ -790,16 +793,16 @@ export default function FormPut({
         const labels = Array.isArray(labelsRaw)
           ? labelsRaw.map((item) => String(item).trim()).filter(Boolean)
           : [];
-        const qualifiersRaw = ref.qualifiers;
-        const qualifiersFromValue = qualifiersRaw && typeof qualifiersRaw === "object" && !Array.isArray(qualifiersRaw)
+        const attributesRaw = ref.attributes ?? ref.qualifiers;
+        const attributesFromValue = attributesRaw && typeof attributesRaw === "object" && !Array.isArray(attributesRaw)
           ? Object.fromEntries(
-              Object.entries(qualifiersRaw as Record<string, unknown>).map(([k, v]) => [k, String(v ?? "")]),
+              Object.entries(attributesRaw as Record<string, unknown>).map(([k, v]) => [k, String(v ?? "")]),
             )
           : {};
         return {
           labelForward: labels[0] ?? defaults.labelForward,
           labelBackward: labels[1] ?? defaults.labelBackward,
-          qualifiers: { ...defaults.qualifiers, ...qualifiersFromValue },
+          attributes: { ...defaults.attributes, ...attributesFromValue },
         };
       }
       return defaults;
@@ -1498,7 +1501,7 @@ export default function FormPut({
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-96 space-y-3" align="start">
-                        <p className="text-xs text-muted-foreground">Override edge labels and qualifiers.</p>
+                        <p className="text-xs text-muted-foreground">Override edge labels and attributes.</p>
                         <div className="grid gap-2">
                           <Label htmlFor={`${selectedKey}-${index}-label-forward`} className="text-xs">Forward label</Label>
                           <Input
@@ -1527,21 +1530,21 @@ export default function FormPut({
                             }
                           />
                         </div>
-                        {sourceMeta.qualifierKeys.map((qualifierKey) => (
+                        {sourceMeta.attributeKeys.map((qualifierKey) => (
                           <div key={`${selectedKey}-${index}-qualifier-${qualifierKey}`} className="grid gap-2">
                             <Label htmlFor={`${selectedKey}-${index}-qualifier-${qualifierKey}`} className="text-xs">
                               Qualifier: {qualifierKey}
                             </Label>
                             <Input
                               id={`${selectedKey}-${index}-qualifier-${qualifierKey}`}
-                              value={override.qualifiers[qualifierKey] ?? ""}
+                              value={override.attributes[qualifierKey] ?? ""}
                               onChange={(event) =>
                                 setSourceOverrides((prev) => {
                                   const next = [...prev];
                                   next[index] = {
                                     ...override,
-                                    qualifiers: {
-                                      ...override.qualifiers,
+                                    attributes: {
+                                      ...override.attributes,
                                       [qualifierKey]: event.target.value,
                                     },
                                   };
@@ -1557,7 +1560,7 @@ export default function FormPut({
                 </div>
                 {sourceMeta && override && (
                   <p className="text-xs text-muted-foreground">
-                    {formatSourceOverrideHint(override, sourceMeta.qualifierKeys)}
+                    {formatSourceOverrideHint(override, sourceMeta.attributeKeys)}
                   </p>
                 )}
               </div>
@@ -1602,7 +1605,7 @@ export default function FormPut({
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-96 space-y-3" align="start">
-                          <p className="text-xs text-muted-foreground">Override edge labels and qualifiers.</p>
+                          <p className="text-xs text-muted-foreground">Override edge labels and attributes.</p>
                           <div className="grid gap-2">
                             <Label htmlFor={`${selectedKey}-multi-${index}-label-forward`} className="text-xs">Forward label</Label>
                             <Input
@@ -1631,21 +1634,21 @@ export default function FormPut({
                               }
                             />
                           </div>
-                          {sourceMeta.qualifierKeys.map((qualifierKey) => (
+                          {sourceMeta.attributeKeys.map((qualifierKey) => (
                             <div key={`${selectedKey}-multi-${index}-qualifier-${qualifierKey}`} className="grid gap-2">
                               <Label htmlFor={`${selectedKey}-multi-${index}-qualifier-${qualifierKey}`} className="text-xs">
                                 Qualifier: {qualifierKey}
                               </Label>
                               <Input
                                 id={`${selectedKey}-multi-${index}-qualifier-${qualifierKey}`}
-                                value={override.qualifiers[qualifierKey] ?? ""}
+                                value={override.attributes[qualifierKey] ?? ""}
                                 onChange={(event) =>
                                   setSourceOverrides((prev) => {
                                     const next = [...prev];
                                     next[index] = {
                                       ...override,
-                                      qualifiers: {
-                                        ...override.qualifiers,
+                                      attributes: {
+                                        ...override.attributes,
                                         [qualifierKey]: event.target.value,
                                       },
                                     };
@@ -1683,7 +1686,7 @@ export default function FormPut({
                 </div>
                 {sourceMeta && override && (
                   <p className="text-xs text-muted-foreground">
-                    {formatSourceOverrideHint(override, sourceMeta.qualifierKeys)}
+                    {formatSourceOverrideHint(override, sourceMeta.attributeKeys)}
                   </p>
                 )}
               </div>

@@ -437,13 +437,13 @@ interface FormPostProps {
 interface SourceFieldMeta {
   target: string;
   labels: [string, string];
-  qualifierKeys: string[];
+  attributeKeys: string[];
 }
 
 interface SourceOverrideState {
   labelForward: string;
   labelBackward: string;
-  qualifiers: Record<string, string>;
+  attributes: Record<string, string>;
 }
 
 function getSourceFieldMeta(field: FieldDefinition): SourceFieldMeta | null {
@@ -457,28 +457,31 @@ function getSourceFieldMeta(field: FieldDefinition): SourceFieldMeta | null {
     : typeof labelsRaw === "string"
       ? labelsRaw.split(",").map((entry) => entry.trim()).filter(Boolean)
       : [];
-  const qualifierKeys = Array.isArray(raw.qualifiers)
-    ? raw.qualifiers.map((entry) => String(entry).trim()).filter(Boolean)
-    : [];
+  const attributeKeysRaw = Array.isArray(raw.attributes)
+    ? raw.attributes
+    : Array.isArray(raw.qualifiers)
+      ? raw.qualifiers
+      : [];
+  const attributeKeys = attributeKeysRaw.map((entry) => String(entry).trim()).filter(Boolean);
   return {
     target: sourceSpec.target,
     labels: [
       labelsList[0] ?? "",
       labelsList[1] ?? labelsList[0] ?? "",
     ],
-    qualifierKeys,
+    attributeKeys,
   };
 }
 
 function defaultSourceOverride(meta: SourceFieldMeta): SourceOverrideState {
-  const qualifiers: Record<string, string> = {};
-  meta.qualifierKeys.forEach((key) => {
-    qualifiers[key] = "";
+  const attributes: Record<string, string> = {};
+  meta.attributeKeys.forEach((key) => {
+    attributes[key] = "";
   });
   return {
     labelForward: meta.labels[0],
     labelBackward: meta.labels[1],
-    qualifiers,
+    attributes,
   };
 }
 
@@ -491,15 +494,15 @@ function getSourceOverrideAt(
   return overridesByField[fieldName]?.[index] ?? defaultSourceOverride(meta);
 }
 
-function formatSourceOverrideHint(override: SourceOverrideState, qualifierKeys: string[]): string {
+function formatSourceOverrideHint(override: SourceOverrideState, attributeKeys: string[]): string {
   const forward = override.labelForward.trim() || "none";
   const backward = override.labelBackward.trim() || "none";
-  const qualifiers = qualifierKeys.length > 0
-    ? qualifierKeys
-      .map((key) => `${key}: ${(override.qualifiers[key] ?? "").trim() || "none"}`)
+  const attributeHint = attributeKeys.length > 0
+    ? attributeKeys
+      .map((key) => `${key}: ${(override.attributes[key] ?? "").trim() || "none"}`)
       .join(" | ")
     : "none";
-  return `Forward: ${forward} | Backward: ${backward} | Qualifiers: ${qualifiers}`;
+  return `Forward: ${forward} | Backward: ${backward} | Attributes: ${attributeHint}`;
 }
 
 function extractReferenceId(raw: unknown): string {
@@ -530,13 +533,13 @@ function buildSourceReferenceObject(
   const value = extractReferenceId(raw);
   if (!value) return null;
   const labels = [override.labelForward.trim(), override.labelBackward.trim()].filter(Boolean);
-  const qualifiers: Record<string, string> = {};
-  Object.entries(override.qualifiers).forEach(([k, v]) => {
-    qualifiers[k] = String(v ?? "");
+  const attributes: Record<string, string> = {};
+  Object.entries(override.attributes).forEach(([k, v]) => {
+    attributes[k] = String(v ?? "");
   });
   const payload: Record<string, unknown> = { value };
   if (labels.length > 0) payload.label = labels;
-  if (Object.keys(qualifiers).length > 0) payload.qualifiers = qualifiers;
+  if (Object.keys(attributes).length > 0) payload.attributes = attributes;
   return payload;
 }
 
@@ -1140,7 +1143,7 @@ export default function FormPost({
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent className="w-96 space-y-3" align="start">
-                                <p className="text-xs text-muted-foreground">Override this reference labels and qualifiers.</p>
+                                <p className="text-xs text-muted-foreground">Override this reference labels and attributes.</p>
                                 <div className="grid gap-2">
                                   <Label htmlFor={`${field.name}-${index}-label-forward`} className="text-xs">Forward label</Label>
                                   <Input
@@ -1175,21 +1178,21 @@ export default function FormPost({
                                     }
                                   />
                                 </div>
-                                {sourceMeta.qualifierKeys.map((qualifierKey) => (
+                                {sourceMeta.attributeKeys.map((qualifierKey) => (
                                   <div key={`${field.name}-${index}-qualifier-${qualifierKey}`} className="grid gap-2">
                                     <Label htmlFor={`${field.name}-${index}-qualifier-${qualifierKey}`} className="text-xs">
                                       Qualifier: {qualifierKey}
                                     </Label>
                                     <Input
                                       id={`${field.name}-${index}-qualifier-${qualifierKey}`}
-                                      value={sourceOverride.qualifiers[qualifierKey] ?? ""}
+                                      value={sourceOverride.attributes[qualifierKey] ?? ""}
                                       onChange={(event) =>
                                         setSourceOverrides((prev) => {
                                           const fieldOverrides = [...(prev[field.name] ?? [])];
                                           fieldOverrides[index] = {
                                             ...sourceOverride,
-                                            qualifiers: {
-                                              ...sourceOverride.qualifiers,
+                                            attributes: {
+                                              ...sourceOverride.attributes,
                                               [qualifierKey]: event.target.value,
                                             },
                                           };
@@ -1228,7 +1231,7 @@ export default function FormPost({
                       </div>
                       {sourceMeta && sourceOverride ? (
                         <p className="text-xs text-muted-foreground">
-                          {formatSourceOverrideHint(sourceOverride, sourceMeta.qualifierKeys)}
+                          {formatSourceOverrideHint(sourceOverride, sourceMeta.attributeKeys)}
                         </p>
                       ) : null}
                     </div>
