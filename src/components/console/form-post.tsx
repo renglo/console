@@ -1490,7 +1490,7 @@ export default function FormPost({
             //    formData.append('image', imageField[0]); // Append the first file
             //}
 
-            const upload_path = path.replace(/_data/g, "_docs");
+            const upload_path = path.replace(/_data/g, "_files");
 
             // Post the data to your server or API endpoint
             const uploadResponse = await fetch(upload_path, {

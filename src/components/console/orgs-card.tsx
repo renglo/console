@@ -90,7 +90,7 @@ export default function OrgsCard({orgdoc,teamsdict,portfolioid}: OrgMosaicProps)
                       <div style={{ width: '381px', height: '381px', backgroundColor: 'lightgray' }}></div>
                     ) : (
                       <img 
-                        src={`${import.meta.env.VITE_API_URL}/_docs/${portfolioid}/${orgdoc.org_id}/_thumbnails/${orgdoc.org_id}.png?refresh=${refresh}`} 
+                        src={`${import.meta.env.VITE_API_URL}/_files/${portfolioid}/${orgdoc.org_id}/_thumbnails/${orgdoc.org_id}.png?refresh=${refresh}`} 
                         onError={() => setImgError(true)}
                       />
                     )}
@@ -100,7 +100,7 @@ export default function OrgsCard({orgdoc,teamsdict,portfolioid}: OrgMosaicProps)
                       portfolio={portfolioid} 
                       org={orgdoc.org_id}
                       refreshUp = {refreshAction}
-                      path = {`${import.meta.env.VITE_API_URL}/_docs/${portfolioid}/${orgdoc.org_id}/_thumbnails`}
+                      path = {`${import.meta.env.VITE_API_URL}/_files/${portfolioid}/${orgdoc.org_id}/_thumbnails`}
                       title = 'Image upload'
                       instructions = 'Format:PNG, Ideally square format, no more than 1000x1000'
                   />
