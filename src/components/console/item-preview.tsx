@@ -38,8 +38,8 @@ import {
 } from "@/components/ui/dialog";
 
 import DialogPut from '@/components/console/dialog-put'
-import ImagePreview from "@/components/console/image-preview"
 import { formatBlueprintFieldValue } from "@/lib/blueprint-field-display"
+import { fileNameFromUri, storedFileHref } from "@/lib/image-upload"
 import RadialGraph from "../../../../extensions/data/ui/components/radial-graph"
 import { buildNodeEdgesRadialGraphModel } from "../../../../extensions/data/ui/components/radial-graph-models"
 import {
@@ -202,6 +202,65 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
         (fieldInfo?.widget === "text" || fieldInfo?.widget === "textarea") &&
         (fieldType === "string" || fieldType === "text");
       const isJsonWidget = fieldInfo?.widget === "json";
+      const isImageWidget = fieldInfo?.widget === "image";
+      const isDocumentWidget = fieldInfo?.widget === "document";
+
+      if (isImageWidget) {
+        const uris = Array.isArray(value)
+          ? value.map((entry) => String(entry ?? "").trim()).filter(Boolean)
+          : value == null || value === ""
+            ? []
+            : [String(value).trim()].filter(Boolean);
+        if (uris.length === 0) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        return (
+          <div className="flex flex-wrap gap-3">
+            {uris.map((uri, index) => {
+              const src = storedFileHref(uri);
+              if (!src) return null;
+              return (
+                <img
+                  key={`${key}-preview-image-${index}`}
+                  src={src}
+                  alt={`${fieldInfo?.label || key} ${index + 1}`}
+                  className="max-h-48 max-w-full rounded-md object-contain"
+                />
+              );
+            })}
+          </div>
+        );
+      }
+
+      if (isDocumentWidget) {
+        const uris = Array.isArray(value)
+          ? value.map((entry) => String(entry ?? "").trim()).filter(Boolean)
+          : value == null || value === ""
+            ? []
+            : [String(value).trim()].filter(Boolean);
+        if (uris.length === 0) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        return (
+          <div className="flex flex-col gap-2">
+            {uris.map((uri, index) => {
+              const href = storedFileHref(uri);
+              if (!href) return null;
+              return (
+                <a
+                  key={`${key}-preview-document-${index}`}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-primary underline-offset-4 hover:underline break-all"
+                >
+                  {fileNameFromUri(uri) || `${fieldInfo?.label || key} ${index + 1}`}
+                </a>
+              );
+            })}
+          </div>
+        );
+      }
 
       if (isJsonWidget) {
         const formatJson = (entry: unknown) => {
@@ -632,14 +691,13 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
                     <TabsTrigger value="raw">Raw JSON</TabsTrigger>
                   </TabsList>
                   <TabsContent value="friendly" className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4 mt-0 data-[state=inactive]:hidden">
-                    <ImagePreview blueprint={blueprint} data={data}/>
-                    <div className="mt-6 min-w-0">
+                    <div className="min-w-0">
                       <div className="font-semibold">Item Details</div>
                       <ul className="mt-3 min-w-0 divide-y divide-border/60">
                       {Object.entries(fieldsDictionary).map(([key, fieldInfo]) => {
                           const value = data[key] ?? data?.attributes?.[key];
                           const isIndexKey = indexPathFields.has(key);
-                          return fieldInfo?.widget !== 'image' && !key.startsWith('_') ? (
+                          return !key.startsWith('_') ? (
                               <li
                                   key={key}
                                   className={cn(

@@ -24,6 +24,14 @@ import { GlobalContext } from "@/components/console/global-context";
 import TagsInput from "@/components/ui/tags-input";
 import { cn } from "@/lib/utils";
 import { parseBlueprintSourceSpec } from "@/lib/console_utils";
+import {
+  DOCUMENT_ACCEPT,
+  isAcceptedDocumentFile,
+  isAcceptedImageFile,
+  resolveFileFieldPayload,
+} from "@/lib/image-upload";
+import ImageSlotPreview from "@/components/console/image-slot-preview";
+import DocumentSlotPreview from "@/components/console/document-slot-preview";
 
 interface FormPutProps {
   selectedKey: string;
@@ -153,6 +161,10 @@ type EditState =
   | { kind: "daterange-multi"; values: string[] }
   | { kind: "timerange"; text: string }
   | { kind: "timerange-multi"; values: string[] }
+  | { kind: "image"; text: string }
+  | { kind: "image-multi"; values: string[] }
+  | { kind: "document"; text: string }
+  | { kind: "document-multi"; values: string[] }
   | { kind: "number"; text: string }
   | { kind: "tagarray"; tags: string[] }
   | { kind: "boolean"; on: boolean }
@@ -566,6 +578,22 @@ function buildEditState(
     return { kind: "json", text: formatJsonForEditor(selectedValue) };
   }
 
+  if (widget === "image") {
+    if (isMultiple) {
+      const values = toArray(selectedValue).map((entry) => String(entry ?? "").trim());
+      return { kind: "image-multi", values: values.length > 0 ? values : [""] };
+    }
+    return { kind: "image", text: String(selectedValue ?? "") };
+  }
+
+  if (widget === "document") {
+    if (isMultiple) {
+      const values = toArray(selectedValue).map((entry) => String(entry ?? "").trim());
+      return { kind: "document-multi", values: values.length > 0 ? values : [""] };
+    }
+    return { kind: "document", text: String(selectedValue ?? "") };
+  }
+
   const optionMap = parseFieldOptions(field) ?? parseSourceOptions(field, blueprint);
   if (optionMap) {
     const required =
@@ -669,6 +697,14 @@ function valueFromEditState(
       return { [fieldKey]: state.text };
     case "timerange-multi":
       return { [fieldKey]: state.values.map((entry) => String(entry).trim()) };
+    case "image":
+      return { [fieldKey]: state.text };
+    case "image-multi":
+      return { [fieldKey]: state.values.map((entry) => String(entry).trim()) };
+    case "document":
+      return { [fieldKey]: state.text };
+    case "document-multi":
+      return { [fieldKey]: state.values.map((entry) => String(entry).trim()) };
     case "number": {
       const t = state.text.trim();
       if (t === "") {
@@ -761,9 +797,12 @@ export default function FormPut({
   const fieldType = typeof field?.type === "string" ? field.type : "";
   const [sourceOverrides, setSourceOverrides] = useState<SourceOverrideState[]>([]);
   const [selectEntries, setSelectEntries] = useState<string[]>([""]);
+  /** Parallel to image/document URI slots; File means replace that slot on save. */
+  const [pendingFileSlots, setPendingFileSlots] = useState<(File | null)[]>([]);
 
   useEffect(() => {
     setState(buildEditState(selectedKey, selectedValue, blueprint));
+    setPendingFileSlots([]);
   }, [selectedKey, selectedValue, blueprint]);
 
   useEffect(() => {
@@ -842,6 +881,37 @@ export default function FormPut({
       });
       return;
     }
+    if (
+      (state.kind === "image" || state.kind === "document") &&
+      (field?.required === true || field?.required === "true") &&
+      !state.text.trim() &&
+      !pendingFileSlots[0]
+    ) {
+      toast({
+        title: "Required",
+        description:
+          state.kind === "document"
+            ? "Please select a document for this field."
+            : "Please select an image for this field.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (
+      (state.kind === "image-multi" || state.kind === "document-multi") &&
+      (field?.required === true || field?.required === "true") &&
+      state.values.every((entry, index) => !entry.trim() && !pendingFileSlots[index])
+    ) {
+      toast({
+        title: "Required",
+        description:
+          state.kind === "document-multi"
+            ? "Please provide at least one document for this field."
+            : "Please provide at least one image for this field.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     let payload: Record<string, unknown>;
     try {
@@ -868,6 +938,23 @@ export default function FormPut({
                 : (cleanedEntries[0] ?? ""),
           };
         }
+      } else if (
+        state.kind === "image" ||
+        state.kind === "image-multi" ||
+        state.kind === "document" ||
+        state.kind === "document-multi"
+      ) {
+        const isMultiple =
+          state.kind === "image-multi" || state.kind === "document-multi";
+        const currentValue = isMultiple ? state.values : state.text;
+        payload = {
+          [selectedKey]: await resolveFileFieldPayload(
+            currentValue,
+            pendingFileSlots,
+            path,
+            isMultiple,
+          ),
+        };
       } else {
         payload = valueFromEditState(state, selectedKey, fieldType);
       }
@@ -891,6 +978,7 @@ export default function FormPut({
       });
 
       if (response.ok) {
+        setPendingFileSlots([]);
         toast({
           title: "Saved",
           description: `${label} was updated.`,
@@ -945,6 +1033,14 @@ export default function FormPut({
         ? "Pick start/end times or edit the generated range text directly."
       : state.kind === "timerange-multi"
         ? "Add or remove time ranges; each range is editable as text."
+      : state.kind === "image"
+        ? "Keep the current image or choose a new file to replace it."
+      : state.kind === "image-multi"
+        ? "Add, remove, or replace images. Unchanged slots keep their current URI."
+      : state.kind === "document"
+        ? "Keep the current document or choose a new file to replace it."
+      : state.kind === "document-multi"
+        ? "Add, remove, or replace documents. Unchanged slots keep their current URI."
       : state.kind === "number"
         ? "Numeric value."
         : state.kind === "tagarray"
@@ -1785,6 +1881,271 @@ export default function FormPut({
             size="icon"
             onClick={() => setState({ kind: "json-multi", values: [...state.values, ""] })}
             aria-label="Add value"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {state.kind === "image" && (
+        <div className="space-y-2">
+          {(() => {
+            const pending = pendingFileSlots[0] ?? null;
+            return (
+              <>
+                <ImageSlotPreview
+                  file={pending}
+                  uri={state.text}
+                  alt={label}
+                />
+                <Input
+                  id={`put-${selectedKey}-image`}
+                  type="file"
+                  accept="image/jpeg,image/png"
+                  onChange={(e) => {
+                    const selected = e.target.files?.[0] ?? null;
+                    if (!selected) return;
+                    if (!isAcceptedImageFile(selected)) {
+                      alert("Please upload a valid image file (JPEG or PNG)");
+                      e.target.value = "";
+                      return;
+                    }
+                    setPendingFileSlots([selected]);
+                    setState({ kind: "image", text: selected.name });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground break-all">
+                  {pending
+                    ? `New file: ${pending.name}`
+                    : state.text || "No image selected"}
+                </p>
+                {(state.text || pending) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700"
+                    onClick={() => {
+                      setPendingFileSlots([]);
+                      setState({ kind: "image", text: "" });
+                    }}
+                  >
+                    Clear image
+                  </Button>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {state.kind === "image-multi" && (
+        <div className="space-y-2">
+          {state.values.map((value, index) => {
+            const pending = pendingFileSlots[index] ?? null;
+            return (
+              <div key={`${selectedKey}-image-${index}`} className="flex items-start gap-2">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <ImageSlotPreview
+                    file={pending}
+                    uri={value}
+                    alt={`${label} ${index + 1}`}
+                    className="max-h-40 max-w-full rounded-md object-contain"
+                  />
+                  <Input
+                    id={`put-${selectedKey}-image-${index}`}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    onChange={(e) => {
+                      const selected = e.target.files?.[0] ?? null;
+                      if (!selected) return;
+                      if (!isAcceptedImageFile(selected)) {
+                        alert("Please upload a valid image file (JPEG or PNG)");
+                        e.target.value = "";
+                        return;
+                      }
+                      setPendingFileSlots((prev) => {
+                        const next = [...prev];
+                        while (next.length <= index) next.push(null);
+                        next[index] = selected;
+                        return next;
+                      });
+                      const nextValues = [...state.values];
+                      nextValues[index] = selected.name;
+                      setState({ kind: "image-multi", values: nextValues });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground break-all">
+                    {pending
+                      ? `New file: ${pending.name}`
+                      : value || "No image selected"}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-red-600 hover:text-red-700"
+                  onClick={() => {
+                    const nextValues = state.values.filter((_, currentIndex) => currentIndex !== index);
+                    setState({
+                      kind: "image-multi",
+                      values: nextValues.length ? nextValues : [""],
+                    });
+                    setPendingFileSlots((prev) => {
+                      const next = [...prev];
+                      next.splice(index, 1);
+                      return next;
+                    });
+                  }}
+                  aria-label="Remove image"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })}
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            onClick={() => {
+              setState({ kind: "image-multi", values: [...state.values, ""] });
+              setPendingFileSlots((prev) => [...prev, null]);
+            }}
+            aria-label="Add image"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {state.kind === "document" && (
+        <div className="space-y-2">
+          {(() => {
+            const pending = pendingFileSlots[0] ?? null;
+            return (
+              <>
+                <DocumentSlotPreview
+                  file={pending}
+                  uri={state.text}
+                  label={label}
+                />
+                <Input
+                  id={`put-${selectedKey}-document`}
+                  type="file"
+                  accept={DOCUMENT_ACCEPT}
+                  onChange={(e) => {
+                    const selected = e.target.files?.[0] ?? null;
+                    if (!selected) return;
+                    if (!isAcceptedDocumentFile(selected)) {
+                      alert("Please upload a valid document (PDF, DOC, DOCX, or TXT)");
+                      e.target.value = "";
+                      return;
+                    }
+                    setPendingFileSlots([selected]);
+                    setState({ kind: "document", text: selected.name });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground break-all">
+                  {pending
+                    ? `New file: ${pending.name}`
+                    : state.text || "No document selected"}
+                </p>
+                {(state.text || pending) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700"
+                    onClick={() => {
+                      setPendingFileSlots([]);
+                      setState({ kind: "document", text: "" });
+                    }}
+                  >
+                    Clear document
+                  </Button>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {state.kind === "document-multi" && (
+        <div className="space-y-2">
+          {state.values.map((value, index) => {
+            const pending = pendingFileSlots[index] ?? null;
+            return (
+              <div key={`${selectedKey}-document-${index}`} className="flex items-start gap-2">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <DocumentSlotPreview
+                    file={pending}
+                    uri={value}
+                    label={`${label} ${index + 1}`}
+                  />
+                  <Input
+                    id={`put-${selectedKey}-document-${index}`}
+                    type="file"
+                    accept={DOCUMENT_ACCEPT}
+                    onChange={(e) => {
+                      const selected = e.target.files?.[0] ?? null;
+                      if (!selected) return;
+                      if (!isAcceptedDocumentFile(selected)) {
+                        alert("Please upload a valid document (PDF, DOC, DOCX, or TXT)");
+                        e.target.value = "";
+                        return;
+                      }
+                      setPendingFileSlots((prev) => {
+                        const next = [...prev];
+                        while (next.length <= index) next.push(null);
+                        next[index] = selected;
+                        return next;
+                      });
+                      const nextValues = [...state.values];
+                      nextValues[index] = selected.name;
+                      setState({ kind: "document-multi", values: nextValues });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground break-all">
+                    {pending
+                      ? `New file: ${pending.name}`
+                      : value || "No document selected"}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-red-600 hover:text-red-700"
+                  onClick={() => {
+                    const nextValues = state.values.filter((_, currentIndex) => currentIndex !== index);
+                    setState({
+                      kind: "document-multi",
+                      values: nextValues.length ? nextValues : [""],
+                    });
+                    setPendingFileSlots((prev) => {
+                      const next = [...prev];
+                      next.splice(index, 1);
+                      return next;
+                    });
+                  }}
+                  aria-label="Remove document"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })}
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            onClick={() => {
+              setState({ kind: "document-multi", values: [...state.values, ""] });
+              setPendingFileSlots((prev) => [...prev, null]);
+            }}
+            aria-label="Add document"
           >
             <Plus className="h-4 w-4" />
           </Button>

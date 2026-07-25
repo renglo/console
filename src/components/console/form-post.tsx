@@ -44,6 +44,15 @@ import { useToast } from "@/components/ui/use-toast";
 import {GlobalContext} from "@/components/console/global-context"
 import { cn } from "@/lib/utils";
 import { parseBlueprintSourceSpec } from "@/lib/console_utils";
+import {
+  DOCUMENT_ACCEPT,
+  isAcceptedDocumentFile,
+  isAcceptedImageFile,
+  resolveFileFieldPayload,
+  type PendingFileSlots,
+} from "@/lib/image-upload";
+import ImageSlotPreview from "@/components/console/image-slot-preview";
+import DocumentSlotPreview from "@/components/console/document-slot-preview";
 
 
 interface FieldDefinition {
@@ -51,7 +60,7 @@ interface FieldDefinition {
     type: 'string' | 'number' | 'integer' | 'float' | 'timestamp' | 'array' | 'object'; // Added complex types
     label: string;
     required: boolean;
-    widget: 'text' | 'textarea' | 'date' | 'time' | 'datetime' | 'timerange' | 'daterange' | 'number' | 'select' | 'image' | 'select-cascade' | 'tag' | 'json';
+    widget: 'text' | 'textarea' | 'date' | 'time' | 'datetime' | 'timerange' | 'daterange' | 'number' | 'select' | 'image' | 'document' | 'select-cascade' | 'tag' | 'json';
     cardinality?: 'single' | 'singular' | 'multiple' | string;
     hint?: string; // Optional hint for placeholders
     options?: Record<string, string> | Record<string, Record<string, string>>; // select: key-value; select-cascade: outerKey -> key-value
@@ -290,6 +299,34 @@ function generateSchema(fieldArray: FieldDefinition[]): z.ZodObject<any> {
             (value) => (value === null || value === undefined ? "" : String(value)),
             z.string()
           );
+    } else if (field.widget === "image" || field.widget === "document") {
+      // File fields store URI strings (or pending local filenames) in the form value.
+      // Pending File objects live in component state and are uploaded on submit.
+      // Keep empty slots so indices stay aligned with pendingFiles.
+      const itemLabel = field.widget === "document" ? "document" : "image";
+      validation = isMultiple
+        ? z.preprocess(
+            (value) => {
+              if (value === null || value === undefined || value === "") return [];
+              if (Array.isArray(value)) {
+                return value.map((entry) => String(entry ?? "").trim());
+              }
+              return [String(value).trim()];
+            },
+            field.required
+              ? z
+                  .array(z.string())
+                  .refine((entries) => entries.some((entry) => entry.length > 0), {
+                    message: `${field.label} needs at least one ${itemLabel}.`,
+                  })
+              : z.array(z.string())
+          )
+        : z.preprocess(
+            (value) => (value === null || value === undefined ? "" : String(value)),
+            field.required
+              ? z.string().min(1, { message: `${field.label} is required.` })
+              : z.string().optional()
+          );
     } else if (field.type === "number" || field.type === "integer" || field.type === "float") {
       const numericValidation = z.preprocess(
         (value) => {
@@ -354,14 +391,16 @@ function generateSchema(fieldArray: FieldDefinition[]): z.ZodObject<any> {
       );
     }
   
-    if (field.required) {
-      if (validation instanceof z.ZodString) {
-        validation = validation.min(1, { message: `${field.label} is required.` });
-      } else if (validation instanceof z.ZodArray) {
-        validation = validation.min(1, { message: `${field.label} needs at least one item.` });
+    if (field.widget !== "image" && field.widget !== "document") {
+      if (field.required) {
+        if (validation instanceof z.ZodString) {
+          validation = validation.min(1, { message: `${field.label} is required.` });
+        } else if (validation instanceof z.ZodArray) {
+          validation = validation.min(1, { message: `${field.label} needs at least one item.` });
+        }
+      } else if (!isMultiple) {
+        validation = validation.optional();
       }
-    } else if (!isMultiple) {
-      validation = validation.optional();
     }
   
     return { ...schema, [field.name]: validation };
@@ -563,18 +602,25 @@ export default function FormPost({
   
   const [Fields, setFields] = useState<FieldDefinition[]>([]);
   const [Rich, setRich] = useState<RichDefinition>({});
-  const [file, setFile] = useState<File | null>(null);
+  /** Local File objects keyed by blueprint field name; form values hold URI strings (or pending filenames). */
+  const [pendingFiles, setPendingFiles] = useState<PendingFileSlots>({});
   const [sourceOverrides, setSourceOverrides] = useState<Record<string, SourceOverrideState[]>>({});
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]; // Get the uploaded file
-    if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
-      console.log("setting new file");
-      setFile(file); // Store the file for uploading via FormData
-    } else {
-      alert("Please upload a valid image file");
-    }
+  const setPendingFileSlot = (fieldName: string, index: number, nextFile: File | null) => {
+    setPendingFiles((prev) => {
+      const slots = [...(prev[fieldName] ?? [])];
+      while (slots.length <= index) slots.push(null);
+      slots[index] = nextFile;
+      return { ...prev, [fieldName]: slots };
+    });
+  };
 
+  const removePendingFileSlot = (fieldName: string, index: number) => {
+    setPendingFiles((prev) => {
+      const slots = [...(prev[fieldName] ?? [])];
+      slots.splice(index, 1);
+      return { ...prev, [fieldName]: slots };
+    });
   };
   
   
@@ -1314,18 +1360,135 @@ export default function FormPost({
         }
 
         case "image":
+        case "document": {
+          const isDocument = field.widget === "document";
+          const pendingSlots = pendingFiles[field.name] ?? [];
+          const accept = isDocument ? DOCUMENT_ACCEPT : "image/jpeg,image/png";
+          const invalidMessage = isDocument
+            ? "Please upload a valid document (PDF, DOC, DOCX, or TXT)"
+            : "Please upload a valid image file (JPEG or PNG)";
+          const isAccepted = isDocument ? isAcceptedDocumentFile : isAcceptedImageFile;
+          const emptyLabel = isDocument ? "No document selected" : "No image selected";
+          const removeLabel = isDocument ? "Remove document" : "Remove image";
+          const addLabel = isDocument ? "Add document" : "Add image";
 
+          if (isMultiple) {
+            const currentValues = Array.isArray(formField.value)
+              ? formField.value.map((value) => String(value ?? ""))
+              : formField.value
+                ? [String(formField.value)]
+                : [""];
+            return (
+              <div className="space-y-2">
+                {currentValues.map((value, index) => {
+                  const pending = pendingSlots[index] ?? null;
+                  return (
+                    <div key={`${field.name}-${field.widget}-${index}`} className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        {isDocument ? (
+                          <DocumentSlotPreview
+                            file={pending}
+                            uri={value}
+                            label={field.label || field.name}
+                          />
+                        ) : (
+                          <ImageSlotPreview
+                            file={pending}
+                            uri={value}
+                            alt={`${field.label || field.name} ${index + 1}`}
+                            className="max-h-40 max-w-full rounded-md object-contain"
+                          />
+                        )}
+                        <Input
+                          type="file"
+                          accept={accept}
+                          onChange={(event) => {
+                            const selected = event.target.files?.[0] ?? null;
+                            if (!selected) return;
+                            if (!isAccepted(selected)) {
+                              alert(invalidMessage);
+                              event.target.value = "";
+                              return;
+                            }
+                            setPendingFileSlot(field.name, index, selected);
+                            const next = [...currentValues];
+                            next[index] = selected.name;
+                            formField.onChange(next);
+                          }}
+                        />
+                        <p className="text-xs text-muted-foreground break-all">
+                          {pending?.name || value || field.hint || emptyLabel}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-600 hover:text-red-700"
+                        onClick={() => {
+                          const next = currentValues.filter((_, valueIndex) => valueIndex !== index);
+                          formField.onChange(next.length ? next : []);
+                          removePendingFileSlot(field.name, index);
+                        }}
+                        aria-label={removeLabel}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  onClick={() => {
+                    formField.onChange([...currentValues, ""]);
+                    setPendingFileSlot(field.name, currentValues.length, null);
+                  }}
+                  aria-label={addLabel}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          }
+
+          const pending = pendingSlots[0] ?? null;
+          const displayValue = pending?.name || String(formField.value ?? "") || field.hint || emptyLabel;
           return (
-
-            <Input
-              type="file"
-              placeholder={field.hint}
-              accept="image/*" 
-              {...formField}
-              onChange={(e) => formField.onChange(handleFileChange(e))} // Convert to number
-              
-            />
+            <div className="space-y-1">
+              {isDocument ? (
+                <DocumentSlotPreview
+                  file={pending}
+                  uri={String(formField.value ?? "")}
+                  label={field.label || field.name}
+                />
+              ) : (
+                <ImageSlotPreview
+                  file={pending}
+                  uri={String(formField.value ?? "")}
+                  alt={field.label || field.name}
+                />
+              )}
+              <Input
+                type="file"
+                accept={accept}
+                onChange={(event) => {
+                  const selected = event.target.files?.[0] ?? null;
+                  if (!selected) return;
+                  if (!isAccepted(selected)) {
+                    alert(invalidMessage);
+                    event.target.value = "";
+                    return;
+                  }
+                  setPendingFileSlot(field.name, 0, selected);
+                  formField.onChange(selected.name);
+                }}
+              />
+              <p className="text-xs text-muted-foreground break-all">{displayValue}</p>
+            </div>
           );
+        }
 
     
         // Add more cases for different widget types as needed
@@ -1346,7 +1509,7 @@ export default function FormPost({
               .map(field => ({
                 ...field,
                 type: field.type as "string" | "number" | "integer" | "float" | "timestamp" | "array" | "object",
-                widget: field.widget as "number" | "date" | "time" | "datetime" | "timerange" | "daterange" | "select" | "text" | "textarea" | "image" | "select-cascade" | "tag" | "json",
+                widget: field.widget as "number" | "date" | "time" | "datetime" | "timerange" | "daterange" | "select" | "text" | "textarea" | "image" | "document" | "select-cascade" | "tag" | "json",
               }))
           );
 
@@ -1470,51 +1633,22 @@ export default function FormPost({
 
       try {
 
-          // Step 1:  Upload File if it exist
-          if(file) {
-
-            console.log('Uploading image:')
-            console.log(file)
-
-            const formData = new FormData();
-            formData.append("up_file", file, file.name);
-            formData.append("up_file_type", file.type);
-            
-            // Append the image file if it exists
-            
-            //const imageField = data.image; // Assuming 'image' is the name of your file input
-            //if (imageField && imageField.length > 0) {
-            //    formData.append('image', imageField[0]); // Append the first file
-            //}
-
-            const upload_path = path.replace(/_data/g, "_files");
-
-            // Post the data to your server or API endpoint
-            const uploadResponse = await fetch(upload_path, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${sessionStorage.accessToken}`,
-              },
-              body: formData, // Send FormData instead of JSON
-            });
-
-            if (!uploadResponse.ok) {
-              throw new Error('File upload failed');
-            }
-    
-            const uploadResult = await uploadResponse.json();
-
-            data['imageurl'] = uploadResult.path
-
-
+          // Step 1: Upload pending files for image/document fields, keyed by field name.
+          const payload = { ...(data as Record<string, unknown>) };
+          for (const field of Fields) {
+            if (field.widget !== "image" && field.widget !== "document") continue;
+            const isMultiple = String(field.cardinality ?? "single").toLowerCase() === "multiple";
+            payload[field.name] = await resolveFileFieldPayload(
+              payload[field.name],
+              pendingFiles[field.name],
+              path,
+              isMultiple,
+            );
           }
 
-
-          // Step 2: Submit form with file URL
-          // Post the data to your server or API endpoint
-
+          // Step 2: Submit form with resolved file URIs
           console.log('Posting Form:');
-          console.log(data);
+          console.log(payload);
 
 
           const response = await fetch(path, {
@@ -1523,12 +1657,13 @@ export default function FormPost({
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${sessionStorage.accessToken}`,
             },
-            body: JSON.stringify(data),
+            body: JSON.stringify(payload),
           });
     
           // Handle the response
           if (response.ok) {
             console.log('Data submitted successfully!');
+            setPendingFiles({});
             toast({
               title: "Data submitted successfully",
               description: (

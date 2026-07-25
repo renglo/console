@@ -48,13 +48,17 @@ export default function DialogPost({ refreshUp, blueprint, path, method, title, 
         </div>    
       </DialogTrigger>
       <DialogContent className="flex max-h-[90vh] w-[calc(100vw-1rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:w-full">
-        <DialogHeader className="shrink-0 border-b px-4 py-3 pr-14 text-left">
+        <DialogHeader className="sticky top-0 z-20 shrink-0 space-y-0 border-b bg-background px-4 py-3 pr-14 text-left">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1 space-y-1">
-              <DialogTitle>{title}</DialogTitle>
-              <DialogDescription>
-                {instructions}
-              </DialogDescription>
+              <DialogTitle className="text-base font-semibold leading-snug">
+                {title}
+              </DialogTitle>
+              {instructions?.trim() && (
+                <DialogDescription className="text-xs leading-relaxed text-muted-foreground">
+                  {instructions}
+                </DialogDescription>
+              )}
             </div>
             <Button
               type="submit"
@@ -68,12 +72,12 @@ export default function DialogPost({ refreshUp, blueprint, path, method, title, 
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
           <FormPost
-              refreshUp={refreshAction}
-              blueprint={blueprint}
-              path={path}
-              method={method}
-              formId={formId}
-              hideSubmitButton
+            refreshUp={refreshAction}
+            blueprint={blueprint}
+            path={path}
+            method={method}
+            formId={formId}
+            hideSubmitButton
           />
         </div>
       </DialogContent>
