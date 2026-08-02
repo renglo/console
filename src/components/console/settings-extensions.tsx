@@ -14,6 +14,7 @@ import { useState, useEffect, useContext } from 'react';
 import { GlobalContext } from "@/components/console/global-context"
 
 import ExtensionsCard from "@/components/console/extensions-card"
+import { sortByName } from "@/lib/sort-entities"
 
 interface Tool {
   tool_id: string;
@@ -124,7 +125,7 @@ export default function SettingsExtensions() {
             <div className="grid gap-4 grid-cols-1">
             {
               (tree?.portfolios[p_portfolio]?.tools && Object.keys(tree?.portfolios[p_portfolio]?.tools).length > 0) ? (
-                Object.values(tree?.portfolios[p_portfolio]?.tools as Record<string, Tool>).map((row: Tool) => (
+                sortByName(Object.values(tree?.portfolios[p_portfolio]?.tools as Record<string, Tool>)).map((row: Tool) => (
                   <ExtensionsCard
                     key={row.tool_id}
                     extensiondoc={row}

@@ -16,6 +16,9 @@ import { useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
 import DialogPost from "@/components/console/dialog-post"
+import DialogProfileName from "@/components/console/dialog-profile-name"
+import DialogUserThumbnail from "@/components/console/dialog-user-thumbnail"
+import DialogTags from "@/components/console/dialog-tags"
 
 
 export const description =
@@ -183,6 +186,52 @@ export default function Account() {
                 </div>
               </CardContent>             
             </Card> 
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Change First/Last name</CardTitle>
+                <CardDescription>
+                  Update your first and last name on your Cognito profile and user record.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-muted-foreground">
+                  <DialogProfileName />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Profile thumbnail</CardTitle>
+                <CardDescription>
+                  Upload a square profile image shown in the upper-right corner of the console.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-muted-foreground">
+                  <DialogUserThumbnail />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Tags</CardTitle>
+                <CardDescription>
+                  Add key-value tags to your user profile (for example, role or department).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-muted-foreground">
+                  <DialogTags
+                    getUrl={`${import.meta.env.VITE_API_URL}/_auth/user`}
+                    putUrl={`${import.meta.env.VITE_API_URL}/_auth/user`}
+                    title="User tags"
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>

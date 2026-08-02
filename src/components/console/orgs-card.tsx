@@ -9,7 +9,10 @@ import { Badge } from "@/components/ui/badge"
 import DialogPut from '@/components/console/dialog-put'
 import DialogUpload from '@/components/console/dialog-upload'
 import DialogDelete from '@/components/console/dialog-delete'
-import { useState, useEffect } from 'react';
+import DialogTags from '@/components/console/dialog-tags'
+import EntityTagsList from '@/components/console/entity-tags-list'
+import { useState, useEffect, useContext } from 'react';
+import { GlobalContext } from '@/components/console/global-context'
 
 
 interface OrgMosaicProps { 
@@ -23,6 +26,8 @@ interface OrgMosaicProps {
 
 export default function OrgsCard({orgdoc,teamsdict,portfolioid}: OrgMosaicProps) {
 
+  const context = useContext(GlobalContext);
+  const loadTree = context?.loadTree;
 
   const [refresh, setRefresh] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -34,10 +39,8 @@ export default function OrgsCard({orgdoc,teamsdict,portfolioid}: OrgMosaicProps)
 
   // Function to update the state
   const refreshAction = () => {
-    setRefresh(prev => !prev); // Toggle the `refresh` state to trigger useEffect
-    //refreshUp();
-    console.log(refresh);
-
+    setRefresh(prev => !prev);
+    loadTree?.();
   };
     
   return (
@@ -67,6 +70,12 @@ export default function OrgsCard({orgdoc,teamsdict,portfolioid}: OrgMosaicProps)
                             path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/orgs/${orgdoc.org_id}`}
                             method='PUT'
                       />
+                      <DialogTags
+                        getUrl={`${import.meta.env.VITE_API_URL}/_auth/orgs/${portfolioid}-${orgdoc.org_id}`}
+                        putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/orgs/${orgdoc.org_id}`}
+                        refreshUp={refreshAction}
+                        title="Organization tags"
+                      />
                       <DialogDelete 
                               selectedKey='name' 
                               selectedValue={orgdoc.name} 
@@ -80,6 +89,7 @@ export default function OrgsCard({orgdoc,teamsdict,portfolioid}: OrgMosaicProps)
                     </span>
                   </span>   
                 </CardTitle>
+                <EntityTagsList tags={orgdoc.tags} className="mt-2" />
                 </CardHeader>
               
                 <CardContent>

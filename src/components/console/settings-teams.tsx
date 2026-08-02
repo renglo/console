@@ -12,6 +12,7 @@ import { useParams,useLocation } from 'react-router-dom';
 
 import TeamCard from "@/components/console/team-card"
 import DialogPost from "@/components/console/dialog-post"
+import { sortByName } from "@/lib/sort-entities"
 
 
 interface Blueprint {
@@ -101,7 +102,7 @@ export default function SettingsTeams() {
             </Card>
             {
               (tree?.portfolios[p_portfolio]?.teams && Object.keys(tree?.portfolios[p_portfolio]?.teams).length > 0) ? (
-                  Object.values(tree?.portfolios[p_portfolio]?.teams).map((row) => (
+                  sortByName(Object.values(tree?.portfolios[p_portfolio]?.teams)).map((row) => (
 
                     <TeamCard 
                        key={row['team_id']}

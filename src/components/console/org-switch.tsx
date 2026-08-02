@@ -22,6 +22,7 @@ import {
 import { useState, useContext } from 'react';
 import { GlobalContext } from "@/components/console/global-context"
 import { useLocation, useNavigate } from 'react-router-dom';
+import { sortByName } from "@/lib/sort-entities";
 
 interface Portfolio {
   name: string;
@@ -112,7 +113,9 @@ export default function OrgSwitch({ refreshUp }: OrgSwitchProps) {
                       {tree && tree.portfolios && tree.portfolios[p_portfolio] ? (
                           tree.portfolios[p_portfolio].orgs &&
                           Object.keys(tree.portfolios[p_portfolio].orgs).length > 0 ? (
-                            Object.values(tree.portfolios[p_portfolio].orgs as Record<string, Org>)
+                            sortByName(
+                              Object.values(tree.portfolios[p_portfolio].orgs as Record<string, Org>),
+                            )
                               .filter((row: Org) => row.active === true)
                               .map((row: Org) => (
                               <CommandItem

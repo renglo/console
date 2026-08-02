@@ -16,7 +16,84 @@ const DOCUMENT_MIME_TYPES = new Set([
 const DOCUMENT_EXTENSIONS = new Set([".pdf", ".txt", ".doc", ".docx"]);
 
 export function isAcceptedImageFile(file: File): boolean {
-  return IMAGE_MIME_TYPES.has(file.type);
+  if (IMAGE_MIME_TYPES.has(file.type)) return true;
+  const name = file.name.toLowerCase();
+  return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png');
+}
+
+/** Public URL for a user's profile thumbnail (500×500 PNG in S3). */
+export function userThumbnailUrl(handle: string, refresh?: string | number): string {
+  const trimmed = handle.trim();
+  if (!trimmed) return '';
+  const base = `${import.meta.env.VITE_API_URL}/_files/auth/thumbnails/${trimmed}.png`;
+  if (refresh == null || refresh === '') return base;
+  return `${base}?refresh=${encodeURIComponent(String(refresh))}`;
+}
+
+export function notifyUserThumbnailUpdated(): void {
+  const version = String(Date.now());
+  sessionStorage.setItem('cu_thumbnail_v', version);
+  window.dispatchEvent(new Event('user-thumbnail-updated'));
+}
+
+export function userInitialsFromSession(): string {
+  const first = (sessionStorage.getItem('cu_first') || '').trim();
+  const last = (sessionStorage.getItem('cu_last') || '').trim();
+  const fromNames = `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
+  if (fromNames.trim()) return fromNames;
+  const handle = sessionStorage.getItem('cu_handle') || '';
+  return handle.substring(0, 2).toUpperCase();
+}
+
+/** Same org thumbnail URL used on the home page (`/_files/.../_thumbnails/{orgId}.png`). */
+export function orgThumbnailUrl(portfolioId: string, orgId: string): string {
+  return `${import.meta.env.VITE_API_URL}/_files/${portfolioId}/${orgId}/_thumbnails/${orgId}.png`;
+}
+
+const warmedImageUrls = new Set<string>();
+
+/** Preload an image URL once so later <img> mounts reuse the browser cache. */
+export function warmImageCache(url: string): void {
+  const trimmed = url.trim();
+  if (!trimmed || warmedImageUrls.has(trimmed)) return;
+  warmedImageUrls.add(trimmed);
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = trimmed;
+}
+
+type TreePortfolios = Record<
+  string,
+  {
+    portfolio_id: string;
+    orgs?: Record<string, PortfolioOrgRef>;
+  }
+>;
+
+/** Warm org thumbnails for the account-menu portfolio collage (max 4 orgs each). */
+export function warmPortfolioThumbnailCache(portfolios: TreePortfolios | undefined): void {
+  if (!portfolios) return;
+  for (const portfolio of Object.values(portfolios)) {
+    const portfolioId = portfolio.portfolio_id;
+    for (const org of activePortfolioOrgs(portfolio.orgs).slice(0, 4)) {
+      warmImageCache(orgThumbnailUrl(portfolioId, org.org_id));
+    }
+  }
+}
+
+export type PortfolioOrgRef = {
+  org_id: string;
+  handle?: string;
+  name?: string;
+  active?: boolean;
+};
+
+/** Active orgs for a portfolio, matching the home page filter. */
+export function activePortfolioOrgs(
+  orgs: Record<string, PortfolioOrgRef> | undefined,
+): PortfolioOrgRef[] {
+  if (!orgs) return [];
+  return Object.values(orgs).filter((org) => org.active === true);
 }
 
 export function isAcceptedDocumentFile(file: File): boolean {

@@ -1,34 +1,13 @@
 
 import { useState } from 'react';
     
-import { signIn} from './authService';
+import { completeNewPasswordChallenge, signIn } from './authService';
+import { finishAuthenticatedSession } from './authSession';
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useLocation } from 'react-router-dom';
-
-import * as CryptoJS from 'crypto-js';
-
-
-/*eslint-disable*/
-function parseJwt (token:any) {
-  var base64Url = token.split('.')[1];
-  var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-  var jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-  }).join(''));
-  return JSON.parse(jsonPayload);
-}
-/*eslint-enable*/
-
-function getHandle(input: string): string {
-  // Generate the MD5 hash of the input string
-  const hash = CryptoJS.MD5(input).toString();
-  // Extract the first 9 characters of the hash
-  const handle = hash.substring(0, 9);
-  return handle;
-}
 
 
 export default function AuthLogin() {
@@ -36,76 +15,42 @@ export default function AuthLogin() {
     const location = useLocation();
     const queryParams = new URLSearchParams(location.search);
     
-    const [email, setEmail] = useState(queryParams.get('email'));
+    const [email, setEmail] = useState(queryParams.get('email') ?? '');
     const [password, setPassword] = useState('');
 
     const handleSignIn = async (e: { preventDefault: () => void; }) => {
         e.preventDefault();
         try {
-          
           if (!email || !password) {
-            console.error("Email and password must be provided");
             throw new Error("Email and password must be provided");
           }
 
-          const session = await signIn(email, password);
-          
-          console.log('Sign in successful', session);
-          if (session && typeof session.AccessToken !== 'undefined') {
-            //The authService already stored the accessToken in the sessionStorage
-            //This is a double check to avoid an undefined token.
-            sessionStorage.setItem('accessToken', session.AccessToken);
+          const result = await signIn(email, password);
 
-            var accessToken = parseJwt(sessionStorage.accessToken.toString());
-            var idToken = parseJwt(sessionStorage.idToken.toString());
-            const handle = getHandle(accessToken.username);
-            sessionStorage.setItem('token_exp', idToken.exp);
-
-            //This data exists as a failsafe in case the GlobalContext is reset
-            sessionStorage.setItem('cu_handle', handle);
-            sessionStorage.setItem('cu_email', idToken.email);
-            sessionStorage.setItem('cu_first', idToken.given_name);
-            sessionStorage.setItem('cu_last', idToken.family_name);
-         
-
-            const data = {"last_login":true} 
-            const put_response = await fetch(`${import.meta.env.VITE_API_URL}/_auth/user`, {
-              method: 'PUT',
-              headers: {
-              'Authorization': `Bearer ${sessionStorage.idToken}`,
-              'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(data),
-            });
-            console.log(put_response);
-
-
-            if (sessionStorage.getItem('accessToken')) {
-              //This is where user is redirected after successful login
-              // We use window.location.href as it is more flexible."
-              // Using windlow.location will cause that anything in the GlobalContext to reset. 
-              console.log('redirecting to /home');
-              
-              window.location.href = `/home`;
-
-            } else {
-              console.error('Session token was not set properly.');
-              alert('Session token was not set properly.');
-            }
-          } else {
-            console.error('SignIn session or AccessToken is undefined.');
-            alert('SignIn session or AccessToken is undefined. You need to reset your password first.');
+          if (result.kind === 'new_password_required') {
+            window.location.href = `/invite?setup=admin&email=${encodeURIComponent(email)}`;
+            return;
           }
+
+          await finishAuthenticatedSession(result.tokens);
         } catch (error) {
           alert(`Sign in failed: ${error}`);
         }
       };
 
 
+    const backgroundUrl = import.meta.env.VITE_WL_BACKGROUND;
+
     return (
-        <div className="w-full lg:grid lg:min-h-[600px] lg:grid-cols-2 xl:min-h-[800px]">
-          <div className="flex items-center justify-center py-12">
-              <div className="mx-auto grid w-[350px] gap-6">
+        <div
+          className="relative min-h-screen w-full bg-cover bg-center bg-no-repeat"
+          style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})` } : undefined}
+        >
+          {backgroundUrl && (
+            <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+          )}
+          <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
+            <div className="mx-auto grid w-full max-w-[400px] gap-6 rounded-lg border bg-background/95 p-8 shadow-lg backdrop-blur-sm">
               <div className="grid gap-2 text-center">
                   <h1 className="text-3xl font-bold">Login</h1>
                   <p className="text-balance text-muted-foreground">
@@ -119,7 +64,7 @@ export default function AuthLogin() {
                       <Input
                           id="email"
                           type="email"
-                          value={email ?? ""}
+                          value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="m@example.com"
                           required
@@ -155,17 +100,7 @@ export default function AuthLogin() {
                   Create one here
                   </a>
               </div>
-              </div>
-          </div>
-          <div className="hidden bg-muted lg:block h-full w-full">
-              <img
-              src={`${import.meta.env.VITE_WL_LOGIN}`}
-              alt="Img"
-              
-              className="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-              />
-
-
+            </div>
           </div>
         </div>
     )

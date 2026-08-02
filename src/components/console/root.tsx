@@ -36,11 +36,14 @@ import{
 } from "@/components/ui/avatarsq"
 import { Toaster } from "@/components/ui/toaster"
 import OrgSwitch from "@/components/console/org-switch"
+import PortfolioThumbnail from "@/components/console/portfolio-thumbnail"
 import ToolSwitch from "@/components/console/tool-switch"
 import SideNav from "../../nav"
 import SheetNav from "../../sheetnav"
 import { useNavigate,NavLink,useParams,useLocation } from 'react-router-dom'
 import {GlobalContext} from "@/components/console/global-context"
+import { userInitialsFromSession, userThumbnailUrl, warmPortfolioThumbnailCache } from "@/lib/image-upload"
+import { sortByName } from "@/lib/sort-entities"
 
 import { useState, useEffect, useContext } from 'react';
 
@@ -55,7 +58,11 @@ export default function Root() {
   
   const { portfolio, org, tool, section } = useParams(); // Extract the 'route' parameter from the URL
   const [refresh, setRefresh] = useState(false);
+  const [thumbnailRefresh, setThumbnailRefresh] = useState(
+    sessionStorage.getItem('cu_thumbnail_v') ?? '0',
+  );
   const location = useLocation();
+  const userHandle = sessionStorage.getItem('cu_handle') ?? '';
 
 
   
@@ -95,14 +102,23 @@ export default function Root() {
     initializeContext();
 
   }, []);
-  
-  
 
-  
+  useEffect(() => {
+    const onThumbnailUpdated = () => {
+      setThumbnailRefresh(sessionStorage.getItem('cu_thumbnail_v') ?? String(Date.now()));
+    };
+    window.addEventListener('user-thumbnail-updated', onThumbnailUpdated);
+    return () => window.removeEventListener('user-thumbnail-updated', onThumbnailUpdated);
+  }, []);
+
+  useEffect(() => {
+    warmPortfolioThumbnailCache(tree?.portfolios);
+  }, [tree]);
+
   useEffect(() => {
     // Function to check whether the AccessToken has expired
-    // The Cognito AccessToken expires every 3600 seconds (1 hour)
-    // To-Do: Implement a refresh token process. 
+    // The Cognito ID token exp (stored as token_exp) determines session length; default 24h via stack-a.
+    // To-Do: Implement a refresh token process.
     
     const checkTokenExpiration = () => {
 
@@ -267,15 +283,18 @@ export default function Root() {
               <Button
                 variant="outline"
                 size="icon"
-                className="overflow-hidden rounded-full"
+                className="overflow-hidden rounded-full h-9 w-9"
               >
-                <img
-                  src="/placeholder-user.png"
-                  width={36}
-                  height={36}
-                  alt="Avatar"
-                  className="overflow-hidden rounded-full"
-                />
+                <Avatarsq className="h-9 w-9 rounded-full">
+                  <AvatarsqImage
+                    src={userHandle ? userThumbnailUrl(userHandle, thumbnailRefresh) : ''}
+                    alt="Profile"
+                    className="object-cover"
+                  />
+                  <AvatarsqFallback className="rounded-full text-xs">
+                    {userInitialsFromSession()}
+                  </AvatarsqFallback>
+                </Avatarsq>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -285,14 +304,14 @@ export default function Root() {
                 <div className="text-xs text-muted-foreground">{sessionStorage.cu_first} {sessionStorage.cu_last}</div> 
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>Switch Portfolio</DropdownMenuLabel>
+              <DropdownMenuLabel>Portfolio(s)</DropdownMenuLabel>
 
               {!tree ? (
                 <DropdownMenuItem>
                   <span className="text-xs text-muted-foreground">Could not load portfolios</span>
                 </DropdownMenuItem>
               ) : (tree.portfolios && Object.keys(tree.portfolios).length > 0) ? (
-                Object.values(tree.portfolios).map((row) => (
+                sortByName(Object.values(tree.portfolios)).map((row) => (
                   <DropdownMenuItem key={row['portfolio_id']}>
                     <div 
                       className={
@@ -305,10 +324,11 @@ export default function Root() {
                         className="flex items-center gap-2 flex-row"
                         onClick={() => handleClick(`/${row['portfolio_id']}/settings/extensions`)}
                       >
-                        <Avatarsq>
-                          <AvatarsqImage src='' />
-                          <AvatarsqFallback>1a</AvatarsqFallback>
-                        </Avatarsq>
+                        <PortfolioThumbnail
+                          portfolioId={row['portfolio_id']}
+                          portfolioName={row['name']}
+                          orgs={row['orgs']}
+                        />
                         {row['name']}
                       </div>
                     </div>

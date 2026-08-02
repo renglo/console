@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { useContext } from 'react';
 import { GlobalContext } from "@/components/console/global-context"
 import { NavLink } from "react-router-dom";
+import { sortByName } from "@/lib/sort-entities";
 
 
 interface Portfolio {
@@ -60,7 +61,7 @@ export default function UserHome() {
         {
         (tree.portfolios) ? (
           Object.keys(tree.portfolios).length > 0 ? (
-            Object.values(tree?.portfolios)
+            sortByName(Object.values(tree?.portfolios))
               .filter(p => p.orgs && 
                   Object.keys(p.orgs).length > 0 && 
                   Object.values(p.orgs).some(org => org['active'] === true)
@@ -93,7 +94,7 @@ export default function UserHome() {
                   <div className="grid gap-4 grid-cols-3 justify-items-center">
                       {
                           (p.orgs && Object.keys(p.orgs).length > 0) ? (
-                              Object.values(p.orgs)
+                              sortByName(Object.values(p.orgs))
                                   .filter(row => row['active'] === true)
                                   .map((row) => (
                 

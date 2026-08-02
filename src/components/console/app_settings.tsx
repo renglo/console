@@ -4,6 +4,7 @@ import { useContext, useState } from 'react';
 import { GlobalContext } from "@/components/console/global-context"
 import { useLocation} from 'react-router-dom';
 import DialogPut from '@/components/console/dialog-put'
+import DialogTags from '@/components/console/dialog-tags'
 
 
 export default function AppSettings() {
@@ -43,6 +44,12 @@ export default function AppSettings() {
                         instructions="Modify the Portfolio name and click save."
                         path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${p_portfolio}`}
                         method='PUT'
+                      />
+                      <DialogTags
+                        getUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${p_portfolio}`}
+                        putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${p_portfolio}`}
+                        refreshUp={refreshAction}
+                        title="Portfolio tags"
                       />  
 
           </div>

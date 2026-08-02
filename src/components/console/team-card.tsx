@@ -33,6 +33,7 @@ import DialogInvite from '@/components/console/dialog-invite'
 import DialogPut from '@/components/console/dialog-put'
 import DialogDelete from '@/components/console/dialog-delete'
 import DialogDeleteText from '@/components/console/dialog-delete-text'
+import DialogTags from '@/components/console/dialog-tags'
 
 
 interface TeamCardProps { 
@@ -118,7 +119,13 @@ export default function TeamCard({teamdoc,portfolioid}: TeamCardProps) {
                       instructions="Modify the attribute and click save."
                       path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/teams/${teamdoc.team_id}`}
                       method='PUT'
-                    />                       
+                    />
+                    <DialogTags
+                      getUrl={`${import.meta.env.VITE_API_URL}/_auth/teams/${portfolioid}-${teamdoc.team_id}`}
+                      putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/teams/${teamdoc.team_id}`}
+                      refreshUp={refreshAction}
+                      title="Team tags"
+                    />
                     <DialogDelete 
                           selectedKey='name' 
                           selectedValue={teamdoc.name} 
@@ -143,7 +150,7 @@ export default function TeamCard({teamdoc,portfolioid}: TeamCardProps) {
                       team_id={teamdoc.team_id} 
                       refreshUp={refreshAction}
                       title= {`Invite a collaborator to team : ${teamdoc.name}`}
-                      instructions="To invite someone, they must first create an account. If their email isn’t registered, the invitation will fail." 
+                      instructions="Invite by email. If they are not in the system yet, they receive an email with a link to complete signup."
                       path={`${import.meta.env.VITE_API_URL}/_auth/user/invite`}
                       method='POST'
                 />

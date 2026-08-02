@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import DialogSwitch from "@/components/console/dialog-switch";
 import DialogPut from "@/components/console/dialog-put";
 import DialogDelete from "@/components/console/dialog-delete";
+import DialogTags from "@/components/console/dialog-tags";
 import { useState } from "react";
 
 interface ExtensionsCardProps {
@@ -73,6 +74,12 @@ export default function ExtensionsCard({
                 instructions="Modify the attribute and click save."
                 path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensiondoc.tool_id}`}
                 method="PUT"
+              />
+              <DialogTags
+                getUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensiondoc.tool_id}`}
+                putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensiondoc.tool_id}`}
+                refreshUp={refreshAction}
+                title="Extension tags"
               />
               <DialogDelete
                 selectedKey="name"

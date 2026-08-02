@@ -20,6 +20,7 @@ import {
 
 import DialogPut from '@/components/console/dialog-put'
 import DialogDelete from '@/components/console/dialog-delete'
+import DialogTags from '@/components/console/dialog-tags'
 
 import { GlobalContext } from "@/components/console/global-context"
 import { useState,useContext } from 'react';
@@ -112,7 +113,13 @@ export default function SettingsHome() {
                         instructions="Modify the Portfolio name and click save."
                         path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${p_portfolio}`}
                         method='PUT'
-                      />                       
+                      />
+                      <DialogTags
+                        getUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${p_portfolio}`}
+                        putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${p_portfolio}`}
+                        refreshUp={refreshAction}
+                        title="Portfolio tags"
+                      />
                       <DialogDelete 
                             selectedKey='name' 
                             selectedValue={tree.portfolios[p_portfolio].name} 

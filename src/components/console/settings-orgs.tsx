@@ -13,6 +13,7 @@ import { GlobalContext } from "@/components/console/global-context"
 
 import OrgsCard from "@/components/console/orgs-card"
 import DialogPost from "@/components/console/dialog-post"
+import { sortByName } from "@/lib/sort-entities"
 
 
 interface Blueprint {
@@ -104,7 +105,7 @@ export default function SettingsOrgs() {
             <div className="grid gap-4 grid-cols-2">
             {
               (tree?.portfolios[p_portfolio]?.orgs && Object.keys(tree?.portfolios[p_portfolio]?.orgs).length > 0) ? (
-                  Object.values(tree?.portfolios[p_portfolio]?.orgs).map((row) => (
+                  sortByName(Object.values(tree?.portfolios[p_portfolio]?.orgs)).map((row) => (
 
                     <OrgsCard
                       key={row['org_id']}

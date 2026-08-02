@@ -10,6 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { isAcceptedImageFile } from "@/lib/image-upload";
 
 
 import { useState } from 'react';
@@ -31,27 +32,42 @@ export default function DialogUpload({ portfolio, org, refreshUp, path, title, i
   const [open, setOpen] = useState(false);
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-
-
+  const { toast } = useToast();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-        setImage(file);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setPreview(reader.result as string);
-        };
-        reader.readAsDataURL(file);
+    if (!file) {
+      return;
     }
+    if (!isAcceptedImageFile(file)) {
+      toast({
+        title: "Invalid image",
+        description: "Please upload a JPEG or PNG file.",
+        variant: "destructive",
+      });
+      event.target.value = "";
+      return;
+    }
+    setImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
-
-  // Toast
-  const { toast } = useToast();
 
   const handleUpload = async () => {
 
     if (!image) return;
+
+    if (!isAcceptedImageFile(image)) {
+      toast({
+        title: "Invalid image",
+        description: "Please upload a JPEG or PNG file.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     toast({
         title: "Uploading image",
@@ -149,7 +165,11 @@ export default function DialogUpload({ portfolio, org, refreshUp, path, title, i
         </DialogHeader>
         <ScrollArea className=" rounded-md border p-6" >
             <div>
-                <input type="file" onChange={handleFileChange} />
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                  onChange={handleFileChange}
+                />
                 {preview && <img src={preview} alt="Image preview" className="mt-4" />}
                 <Button onClick={handleUpload} className="mt-4">Upload</Button>
             </div>
