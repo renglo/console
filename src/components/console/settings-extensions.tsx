@@ -20,6 +20,7 @@ interface Tool {
   tool_id: string;
   name: string;
   handle: string;
+  roles?: string[];
 }
 
 interface Portfolio {

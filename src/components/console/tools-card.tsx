@@ -11,6 +11,7 @@ import DialogSwitch from '@/components/console/dialog-switch'
 import DialogPut from '@/components/console/dialog-put'
 import DialogDelete from '@/components/console/dialog-delete'
 import DialogTags from '@/components/console/dialog-tags'
+import TeamToolRoles from '@/components/console/team-tool-roles'
 import { useState } from 'react';
 
 
@@ -123,7 +124,10 @@ export default function ToolsCard({tooldoc,teamsdict,orgsdict,portfolioid}: Tool
                             <tr>  
                                 <th className="border border-gray-300 p-2 text-left">
                                     TEAMS
-                                </th>  
+                                </th>
+                                <th className="min-w-[9rem] border border-gray-300 p-2 text-left">
+                                    <span className="text-xxs">ROLES</span>
+                                </th>
                     {
                       orgsdict && Object.keys(orgsdict).length ? (
                         Object.entries(orgsdict).map(([orgId, org]) => (
@@ -136,9 +140,9 @@ export default function ToolsCard({tooldoc,teamsdict,orgsdict,portfolioid}: Tool
                           </th>
                         ))
                      ) : (
-                        
-                            <td colSpan={3}></td>
-                        
+                            <th className="border border-gray-300 p-2 text-left text-xxs text-muted-foreground">
+                                No orgs
+                            </th>
                      )
                     }
                             </tr> 
@@ -148,8 +152,21 @@ export default function ToolsCard({tooldoc,teamsdict,orgsdict,portfolioid}: Tool
                       teamsdict && Object.keys(teamsdict).length > 0 ? (
                         (Object.values(teamsdict) as Team[]).map((row: Team) => (
 
-                            <tr>
-                                <td className="border border-gray-300 p-2 text-left">{row.name}</td>
+                            <tr key={row.team_id}>
+                                <td className="border border-gray-300 p-2 text-left align-middle">
+                                    {row.name}
+                                </td>
+                                <td className="border border-gray-300 p-2 text-left align-middle">
+                                    <TeamToolRoles
+                                      teamId={row.team_id}
+                                      teamName={row.name}
+                                      toolId={tooldoc.tool_id}
+                                      toolName={tooldoc.name}
+                                      availableRoles={tooldoc.roles || []}
+                                      assignedRoles={row?.tools?.[tooldoc.tool_id]?.roles || []}
+                                      refreshUp={refreshAction}
+                                    />
+                                </td>
                                 
                             
                                 
@@ -157,9 +174,9 @@ export default function ToolsCard({tooldoc,teamsdict,orgsdict,portfolioid}: Tool
                                 orgsdict && Object.keys(orgsdict).length ? (
                                     Object.entries(orgsdict).map(([orgId, org]) => (
 
-                                        row?.tools?.[tooldoc.tool_id].orgs?.includes(orgId) ? ( 
+                                        row?.tools?.[tooldoc.tool_id]?.orgs?.includes(orgId) ? ( 
                                         
-                                        <td key={orgId} className="border border-gray-300 p-2 text-left">
+                                        <td key={orgId} className="border border-gray-300 p-2 text-left align-middle">
                                             <DialogSwitch  
                                                 refreshUp={refreshAction}
                                                 title="Please confirm:"
@@ -175,7 +192,7 @@ export default function ToolsCard({tooldoc,teamsdict,orgsdict,portfolioid}: Tool
                                         ) : (
                                             
 
-                                            <td key={orgId} className="border border-gray-300 p-2 text-left">
+                                            <td key={orgId} className="border border-gray-300 p-2 text-left align-middle">
                                             <DialogSwitch  
                                                 refreshUp={refreshAction}
                                                 title="Please confirm:"
@@ -193,7 +210,9 @@ export default function ToolsCard({tooldoc,teamsdict,orgsdict,portfolioid}: Tool
                                     ))
                                 ) : (
                                     
-                                        <td colSpan={3}>No orgs available (create at least one)</td>
+                                        <td className="border border-gray-300 p-2 text-left align-middle text-xxs text-muted-foreground">
+                                            No orgs available (create at least one)
+                                        </td>
                                     
                                 )
                             }

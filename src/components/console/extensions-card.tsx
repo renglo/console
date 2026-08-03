@@ -11,6 +11,7 @@ import DialogSwitch from "@/components/console/dialog-switch";
 import DialogPut from "@/components/console/dialog-put";
 import DialogDelete from "@/components/console/dialog-delete";
 import DialogTags from "@/components/console/dialog-tags";
+import TeamToolRoles from "@/components/console/team-tool-roles";
 import { useState } from "react";
 
 interface ExtensionsCardProps {
@@ -110,6 +111,9 @@ export default function ExtensionsCard({
             <thead className="sticky top-0 z-10 bg-white">
               <tr>
                 <th className="border border-gray-300 p-2 text-left">TEAMS</th>
+                <th className="min-w-[9rem] border border-gray-300 p-2 text-left">
+                  <span className="text-xxs">ROLES</span>
+                </th>
                 {orgsdict && Object.keys(orgsdict).length ? (
                   Object.entries(orgsdict).map(([orgId, org]) => (
                     <th key={orgId} className="border border-gray-300 p-2 text-left">
@@ -119,7 +123,9 @@ export default function ExtensionsCard({
                     </th>
                   ))
                 ) : (
-                  <td colSpan={3}></td>
+                  <th className="border border-gray-300 p-2 text-left text-xxs text-muted-foreground">
+                    No orgs
+                  </th>
                 )}
               </tr>
             </thead>
@@ -127,12 +133,25 @@ export default function ExtensionsCard({
               {teamsdict && Object.keys(teamsdict).length > 0 ? (
                 (Object.values(teamsdict) as Team[]).map((row: Team) => (
                   <tr key={row.team_id}>
-                    <td className="border border-gray-300 p-2 text-left">{row.name}</td>
+                    <td className="border border-gray-300 p-2 text-left align-middle">
+                      {row.name}
+                    </td>
+                    <td className="border border-gray-300 p-2 text-left align-middle">
+                      <TeamToolRoles
+                        teamId={row.team_id}
+                        teamName={row.name}
+                        toolId={extensiondoc.tool_id}
+                        toolName={extensiondoc.name}
+                        availableRoles={extensiondoc.roles || []}
+                        assignedRoles={row?.tools?.[extensiondoc.tool_id]?.roles || []}
+                        refreshUp={refreshAction}
+                      />
+                    </td>
 
                     {orgsdict && Object.keys(orgsdict).length ? (
                       Object.entries(orgsdict).map(([orgId, org]) =>
-                        row?.tools?.[extensiondoc.tool_id].orgs?.includes(orgId) ? (
-                          <td key={orgId} className="border border-gray-300 p-2 text-left">
+                        row?.tools?.[extensiondoc.tool_id]?.orgs?.includes(orgId) ? (
+                          <td key={orgId} className="border border-gray-300 p-2 text-left align-middle">
                             <DialogSwitch
                               refreshUp={refreshAction}
                               title="Please confirm:"
@@ -145,7 +164,7 @@ export default function ExtensionsCard({
                             />
                           </td>
                         ) : (
-                          <td key={orgId} className="border border-gray-300 p-2 text-left">
+                          <td key={orgId} className="border border-gray-300 p-2 text-left align-middle">
                             <DialogSwitch
                               refreshUp={refreshAction}
                               title="Please confirm:"
@@ -160,7 +179,9 @@ export default function ExtensionsCard({
                         )
                       )
                     ) : (
-                      <td colSpan={3}>No orgs available (create at least one)</td>
+                      <td className="border border-gray-300 p-2 text-left align-middle text-xxs text-muted-foreground">
+                        No orgs available (create at least one)
+                      </td>
                     )}
                   </tr>
                 ))
