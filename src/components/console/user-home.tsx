@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { useContext } from 'react';
 import { GlobalContext } from "@/components/console/global-context"
 import { NavLink } from "react-router-dom";
-import { sortByName } from "@/lib/sort-entities";
+import { PORTFOLIO_SCOPE_ORG, PORTFOLIO_SCOPE_ORG_LABEL, sortByName } from "@/lib/sort-entities";
 
 
 interface Portfolio {
@@ -102,10 +102,23 @@ export default function UserHome() {
                                     <div className="flex items-center flex-col w-16">
                                       
                                         <Avatarsq>
-                                            <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_files/${p.portfolio_id}/${row['org_id']}/_thumbnails/${row['org_id']}.png`} />
-                                            <AvatarsqFallback>{row['handle'].substring(0, 3)}</AvatarsqFallback>
+                                            {row.org_id === PORTFOLIO_SCOPE_ORG ? (
+                                              <AvatarsqImage src="/icons/Asterisk.svg" />
+                                            ) : (
+                                              <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_files/${p.portfolio_id}/${row.org_id}/_thumbnails/${row.org_id}.png`} />
+                                            )}
+                                            <AvatarsqFallback>
+                                              {row.org_id === PORTFOLIO_SCOPE_ORG
+                                                ? PORTFOLIO_SCOPE_ORG_LABEL
+                                                : row.handle.substring(0, 3)}
+                                            </AvatarsqFallback>
                                         </Avatarsq>
-                                        <span className="text-xxs whitespace-nowrap">{row['name'].substring(0, 13)}</span> 
+                                        <span className="text-xxs whitespace-nowrap">
+                                          {(row.org_id === PORTFOLIO_SCOPE_ORG
+                                            ? PORTFOLIO_SCOPE_ORG_LABEL
+                                            : row.name
+                                          ).substring(0, 13)}
+                                        </span>
 
                                         
                                         {Array.isArray(row['tools']) && row['tools'].length > 0 ? (

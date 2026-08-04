@@ -22,7 +22,7 @@ import {
 import { useState, useContext } from 'react';
 import { GlobalContext } from "@/components/console/global-context"
 import { useLocation, useNavigate } from 'react-router-dom';
-import { sortByName } from "@/lib/sort-entities";
+import { PORTFOLIO_SCOPE_ORG, PORTFOLIO_SCOPE_ORG_LABEL, sortOrgsForAccess } from "@/lib/sort-entities";
 
 interface Portfolio {
   name: string;
@@ -67,7 +67,7 @@ export default function OrgSwitch({ refreshUp }: OrgSwitchProps) {
 
   const handleOrgSwitch = (newOrg: string) => {
     // If switching from _all to anything else, navigate without ring_now
-    if (selectedOrg === '_all' && newOrg !== '_all') {
+    if (selectedOrg === PORTFOLIO_SCOPE_ORG && newOrg !== PORTFOLIO_SCOPE_ORG) {
       setSelectedOrg(newOrg);
       setOpen(false);
       refreshUp();
@@ -88,7 +88,7 @@ export default function OrgSwitch({ refreshUp }: OrgSwitchProps) {
             {selectedOrg ? (
             <>
             <Avatarsq>
-                {selectedOrg === '_all' ? (
+                {selectedOrg === PORTFOLIO_SCOPE_ORG ? (
                     <AvatarsqImage src='/icons/Asterisk.svg' />
                 ) : (
                     <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_files/${p_portfolio}/${selectedOrg}/_thumbnails/${selectedOrg}.png`} />
@@ -96,7 +96,13 @@ export default function OrgSwitch({ refreshUp }: OrgSwitchProps) {
                 
             </Avatarsq>
             
-             <span className="text-xxs ">{selectedOrg === '_all' ? 'All' : (tree && 'portfolios' in tree ? tree?.portfolios[p_portfolio]?.orgs[selectedOrg]?.name : '')}</span>
+             <span className="text-xxs ">
+               {selectedOrg === PORTFOLIO_SCOPE_ORG
+                 ? PORTFOLIO_SCOPE_ORG_LABEL
+                 : tree && "portfolios" in tree
+                   ? tree?.portfolios[p_portfolio]?.orgs[selectedOrg]?.name
+                   : ""}
+             </span>
             </>
             ) : (
             <span className="text-xxs ">Select One</span>
@@ -113,7 +119,7 @@ export default function OrgSwitch({ refreshUp }: OrgSwitchProps) {
                       {tree && tree.portfolios && tree.portfolios[p_portfolio] ? (
                           tree.portfolios[p_portfolio].orgs &&
                           Object.keys(tree.portfolios[p_portfolio].orgs).length > 0 ? (
-                            sortByName(
+                            sortOrgsForAccess(
                               Object.values(tree.portfolios[p_portfolio].orgs as Record<string, Org>),
                             )
                               .filter((row: Org) => row.active === true)
@@ -132,9 +138,15 @@ export default function OrgSwitch({ refreshUp }: OrgSwitchProps) {
                                       row.org_id === selectedOrg ? "opacity-100" : "opacity-30"
                                     )}
                                   >
-                                    <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_files/${p_portfolio}/${row.org_id}/_thumbnails/${row.org_id}.png`} />
+                                    {row.org_id === PORTFOLIO_SCOPE_ORG ? (
+                                      <AvatarsqImage src="/icons/Asterisk.svg" />
+                                    ) : (
+                                      <AvatarsqImage src={`${import.meta.env.VITE_API_URL}/_files/${p_portfolio}/${row.org_id}/_thumbnails/${row.org_id}.png`} />
+                                    )}
                                     <AvatarsqFallback>
-                                      {row.handle.substring(0, 3)}
+                                      {row.org_id === PORTFOLIO_SCOPE_ORG
+                                        ? "All"
+                                        : row.handle.substring(0, 3)}
                                     </AvatarsqFallback>
                                   </Avatarsq>
                                   <span
@@ -143,7 +155,7 @@ export default function OrgSwitch({ refreshUp }: OrgSwitchProps) {
                                       row.org_id === selectedOrg ? "font-extrabold" : "font-light"
                                     )}
                                   >
-                                    {row.name}
+                                    {row.org_id === PORTFOLIO_SCOPE_ORG ? PORTFOLIO_SCOPE_ORG_LABEL : row.name}
                                   </span>
                                 </div>
                               </CommandItem>
@@ -153,38 +165,6 @@ export default function OrgSwitch({ refreshUp }: OrgSwitchProps) {
                           )
                         ) : (
                           <div className="text-xs text-muted-foreground"></div> // Handle loading state
-                      )}
-
-                      {(import.meta.env.VITE_CROSS_ORG === 'true') && (
-                              <CommandItem
-                                key="_all"
-                                value="_all"
-                                onSelect={() => {
-                                  handleOrgSwitch("_all");
-                                }}
-                              >
-                                <div className="flex items-center gap-4 flex-row">
-                                  <Avatarsq
-                                    className={cn(
-                                      "",
-                                      "_all" === selectedOrg ? "opacity-100" : "opacity-30"
-                                    )}
-                                  >
-                                    <AvatarsqImage src='/icons/Asterisk.svg' />
-                                    <AvatarsqFallback>
-                                    
-                                    </AvatarsqFallback>
-                                  </Avatarsq>
-                                  <span
-                                    className={cn(
-                                      "",
-                                      "_all" === selectedOrg ? "font-extrabold" : "font-light"
-                                    )}
-                                  >
-                                    ALL
-                                  </span>
-                                </div>
-                              </CommandItem>
                       )}
 
               </CommandGroup>

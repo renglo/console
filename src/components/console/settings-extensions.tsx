@@ -48,7 +48,10 @@ export default function SettingsExtensions() {
   if (!context) {
     throw new Error('No GlobalProvider');
   }
-  const { tree } = context as unknown as { tree: { portfolios: Record<string, Portfolio> } };
+  const { tree, loadTree } = context as unknown as {
+    tree: { portfolios: Record<string, Portfolio> };
+    loadTree: () => Promise<void>;
+  };
   console.log(tree);
 
 
@@ -61,8 +64,6 @@ export default function SettingsExtensions() {
   const [error, setError] = useState<Error | null>(null);
 
   const { ring } = useParams(); // Extract the 'route' parameter from the URL
-
-
 
   useEffect(() => {
       // Function to fetch Blueprint
@@ -100,16 +101,15 @@ export default function SettingsExtensions() {
 
   const refreshTree = async () => {
     try {
-      // Fetch Blueprint
       await fetch(`${import.meta.env.VITE_API_URL}/_auth/tree/refresh`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${sessionStorage.accessToken}`,
         },
       });
-  
-    } catch (err) { 
-      console.log(err); // Log the error directly
+      await loadTree();
+    } catch (err) {
+      console.log(err);
     }
   };
 

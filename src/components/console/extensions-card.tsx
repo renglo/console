@@ -12,6 +12,7 @@ import DialogPut from "@/components/console/dialog-put";
 import DialogDelete from "@/components/console/dialog-delete";
 import DialogTags from "@/components/console/dialog-tags";
 import TeamToolRoles from "@/components/console/team-tool-roles";
+import { orgsForExtensionAccess, PORTFOLIO_SCOPE_ORG, PORTFOLIO_SCOPE_ORG_LABEL } from "@/lib/sort-entities";
 import { useState } from "react";
 
 interface ExtensionsCardProps {
@@ -55,6 +56,10 @@ export default function ExtensionsCard({
     setRefresh((prev) => !prev);
     console.log(refresh);
   };
+
+  const orgEntries = orgsForExtensionAccess(orgsdict as Record<string, Org>).map(
+    (org) => [org.org_id, org] as const,
+  );
 
   return (
     <Card>
@@ -114,11 +119,13 @@ export default function ExtensionsCard({
                 <th className="min-w-[9rem] border border-gray-300 p-2 text-left">
                   <span className="text-xxs">ROLES</span>
                 </th>
-                {orgsdict && Object.keys(orgsdict).length ? (
-                  Object.entries(orgsdict).map(([orgId, org]) => (
+                {orgEntries.length ? (
+                  orgEntries.map(([orgId, org]) => (
                     <th key={orgId} className="border border-gray-300 p-2 text-left">
                       <div className="flex flex-col items-center">
-                        <span className="w-14 break-words text-xxs">{(org as Org).name}</span>
+                        <span className="w-14 break-words text-xxs">
+                          {orgId === PORTFOLIO_SCOPE_ORG ? PORTFOLIO_SCOPE_ORG_LABEL : org.name}
+                        </span>
                       </div>
                     </th>
                   ))
@@ -148,8 +155,8 @@ export default function ExtensionsCard({
                       />
                     </td>
 
-                    {orgsdict && Object.keys(orgsdict).length ? (
-                      Object.entries(orgsdict).map(([orgId, org]) =>
+                    {orgEntries.length ? (
+                      orgEntries.map(([orgId, org]) =>
                         row?.tools?.[extensiondoc.tool_id]?.orgs?.includes(orgId) ? (
                           <td key={orgId} className="border border-gray-300 p-2 text-left align-middle">
                             <DialogSwitch
@@ -157,7 +164,7 @@ export default function ExtensionsCard({
                               title="Please confirm:"
                               instructions={`Do you want to remove access to team (${row.name})
                                                             from extension ${extensiondoc.name}
-                                                            in ${(org as Org).name}?`}
+                                                            in ${orgId === PORTFOLIO_SCOPE_ORG ? PORTFOLIO_SCOPE_ORG_LABEL : org.name}?`}
                               path={`${import.meta.env.VITE_API_URL}/_auth/teams/${row.team_id}/tools/${extensiondoc.tool_id}/orgs/${orgId}`}
                               method="DELETE"
                               label=""
@@ -170,7 +177,7 @@ export default function ExtensionsCard({
                               title="Please confirm:"
                               instructions={`Do you want to add access to team (${row.name})
                                                             from extension ${extensiondoc.name}
-                                                            in ${(org as Org).name}?`}
+                                                            in ${orgId === PORTFOLIO_SCOPE_ORG ? PORTFOLIO_SCOPE_ORG_LABEL : org.name}?`}
                               path={`${import.meta.env.VITE_API_URL}/_auth/teams/${row.team_id}/tools/${extensiondoc.tool_id}/orgs/${orgId}`}
                               method="POST"
                               label=""
