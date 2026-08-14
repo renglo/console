@@ -9,8 +9,21 @@ import {
 import { Input } from "@/components/ui/input"
 import { useNavigate } from 'react-router-dom';
 
-import { useState,FormEvent } from 'react';
+import { useState, FormEvent } from 'react';
 import { CognitoIdentityProviderClient, ForgotPasswordCommand } from '@aws-sdk/client-cognito-identity-provider';
+
+/** Cognito blocks ForgotPassword while the user is in FORCE_CHANGE_PASSWORD. */
+function isPasswordChallengeResetError(error: unknown): boolean {
+  const message = String(
+    (error as { message?: string })?.message ?? error ?? '',
+  ).toLowerCase();
+  return (
+    message.includes('cannot be reset') ||
+    message.includes('current state') ||
+    message.includes('force_change_password') ||
+    message.includes('force change password')
+  );
+}
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -19,6 +32,7 @@ const ForgotPassword = () => {
 
   const handleForgotPassword = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setStatus('');
 
     const client = new CognitoIdentityProviderClient({
       region: import.meta.env.VITE_COGNITO_REGION,
@@ -33,10 +47,19 @@ const ForgotPassword = () => {
       await client.send(command);
       setStatus('Enter code in next page');
       alert("Code sent to your email");
-      navigate('/reset');
-      
+      navigate(`/reset?email=${encodeURIComponent(email)}`);
     } catch (error) {
       console.error('Error sending password reset code:', error);
+      if (isPasswordChallengeResetError(error)) {
+        setStatus(
+          'Password reset is not available until you complete the required password change.',
+        );
+        alert(
+          "Your account still requires a one-time password change (Cognito challenge). Continue on the setup page with the temporary password from your invitation email.",
+        );
+        navigate(`/invite?setup=admin&email=${encodeURIComponent(email)}`);
+        return;
+      }
       setStatus('Failed to send code.');
     }
   };
