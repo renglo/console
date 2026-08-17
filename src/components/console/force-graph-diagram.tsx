@@ -9,12 +9,24 @@ import {
 
 const LEGEND_HIDDEN_SWATCH_COLOR = "#94a3b8";
 
+/** Opaque layer id — domain meaning is supplied by the caller via layerStyles. */
+export type ForceGraphLayerId = string;
+
+export type ForceGraphSymbolName = "circle" | "square" | "triangle";
+
+export interface ForceGraphLayerStyle {
+  id: ForceGraphLayerId;
+  label: string;
+  symbol?: ForceGraphSymbolName;
+}
+
 export interface ForceGraphLinkLike {
   source: string;
   target: string;
   label: string;
   dangling?: boolean;
   derived?: boolean;
+  crossLayer?: boolean;
 }
 
 export interface ForceGraphNodeLike {
@@ -29,6 +41,8 @@ export interface ForceGraphNodeLike {
   providerType?: string;
   externalId?: string;
   name?: string;
+  /** Optional caller-defined layer id; shape comes from layerStyles. */
+  layer?: ForceGraphLayerId;
 }
 
 export interface ForceGraphDataLike {
@@ -52,34 +66,76 @@ type SimLink = d3.SimulationLinkDatum<SimNode> & {
   label: string;
   dangling?: boolean;
   derived?: boolean;
+  crossLayer?: boolean;
 };
 
 export const FORCE_GRAPH_DERIVED_EDGE_COLOR = "#00BFFF";
+export const FORCE_GRAPH_CROSS_LAYER_EDGE_COLOR = "#94a3b8";
 const FORCE_GRAPH_DISCOVERED_EDGE_COLOR = "#64748b";
 const FORCE_GRAPH_DANGLING_EDGE_COLOR = "#94a3b8";
+
+const SYMBOL_BY_NAME: Record<ForceGraphSymbolName, d3.SymbolType> = {
+  circle: d3.symbolCircle,
+  square: d3.symbolSquare,
+  triangle: d3.symbolTriangle,
+};
+
+function symbolForLayer(
+  layer: ForceGraphLayerId | undefined,
+  layerStyles: ReadonlyArray<ForceGraphLayerStyle> | undefined,
+): d3.SymbolType {
+  if (layer && layerStyles?.length) {
+    const match = layerStyles.find((style) => style.id === layer);
+    if (match?.symbol) {
+      return SYMBOL_BY_NAME[match.symbol] ?? d3.symbolCircle;
+    }
+  }
+  return d3.symbolCircle;
+}
 
 function isDerivedGraphLink(link: SimLink): boolean {
   return link.derived === true;
 }
 
+function isCrossLayerGraphLink(link: SimLink): boolean {
+  return link.crossLayer === true;
+}
+
 function styleGraphLinkSelection(
-  selection: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>,
+  selection: d3.Selection<d3.BaseType | SVGLineElement, SimLink, SVGGElement, unknown>,
 ) {
   selection
-    .attr("stroke-width", (link) =>
-      isDerivedGraphLink(link) ? 2.5 : link.dangling ? 1 : 1.4,
-    )
-    .attr("stroke-dasharray", (link) =>
-      link.dangling && !isDerivedGraphLink(link) ? "4 3" : null,
-    )
+    .attr("stroke-width", (link) => {
+      if (isDerivedGraphLink(link)) return 2.5;
+      if (isCrossLayerGraphLink(link)) return 2;
+      return link.dangling ? 1 : 1.4;
+    })
+    .attr("stroke-dasharray", (link) => {
+      if (isDerivedGraphLink(link)) return null;
+      if (isCrossLayerGraphLink(link)) return "2 10 2 10";
+      if (link.dangling) return "4 3";
+      return null;
+    })
     .attr("stroke", (link) => {
       if (isDerivedGraphLink(link)) {
-        return "#00BFFF";
+        return FORCE_GRAPH_DERIVED_EDGE_COLOR;
+      }
+      if (isCrossLayerGraphLink(link)) {
+        return FORCE_GRAPH_CROSS_LAYER_EDGE_COLOR;
       }
       return link.dangling ? FORCE_GRAPH_DANGLING_EDGE_COLOR : FORCE_GRAPH_DISCOVERED_EDGE_COLOR;
     })
-    .attr("stroke-opacity", (link) => (isDerivedGraphLink(link) ? 1 : 0.55))
+    .attr("stroke-opacity", (link) => {
+      if (isDerivedGraphLink(link)) return 1;
+      if (isCrossLayerGraphLink(link)) return 0.85;
+      return 0.55;
+    })
     .attr("pointer-events", "none");
+}
+
+function nodeSymbolSize(node: SimNode): number {
+  const radius = node.isDangling ? 4 : 5 + Math.min(node.linkCount, 6);
+  return Math.PI * radius * radius;
 }
 
 interface ForceGraphDiagramProps {
@@ -88,6 +144,8 @@ interface ForceGraphDiagramProps {
   onSelectNode: (node: ForceGraphNodeLike | null) => void;
   domainColors?: DomainColorDictionary;
   className?: string;
+  /** Optional shape mapping for node.layer values. Default: all circles. */
+  layerStyles?: ReadonlyArray<ForceGraphLayerStyle>;
 }
 
 export default function ForceGraphDiagram({
@@ -96,15 +154,21 @@ export default function ForceGraphDiagram({
   onSelectNode,
   domainColors,
   className,
+  layerStyles,
 }: ForceGraphDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const onSelectNodeRef = useRef(onSelectNode);
+  const layerStylesRef = useRef(layerStyles);
   const [dimensions, setDimensions] = useState({ width: 960, height: 640 });
 
   useEffect(() => {
     onSelectNodeRef.current = onSelectNode;
   }, [onSelectNode]);
+
+  useEffect(() => {
+    layerStylesRef.current = layerStyles;
+  }, [layerStyles]);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -142,6 +206,7 @@ export default function ForceGraphDiagram({
     const { width, height } = dimensions;
     const nodes: SimNode[] = graphData.nodes.map((node) => ({ ...node }));
     const links: SimLink[] = graphData.links.map((link) => ({ ...link }));
+    const styles = layerStylesRef.current;
 
     const groups = [...new Set(nodes.map((node) => node.group))].sort();
     const groupIndex = new Map(groups.map((group, index) => [group, index]));
@@ -169,7 +234,12 @@ export default function ForceGraphDiagram({
         }),
     );
 
-    const baseLinks = links.filter((link) => !isDerivedGraphLink(link));
+    const baseLinks = links.filter(
+      (link) => !isDerivedGraphLink(link) && !isCrossLayerGraphLink(link),
+    );
+    const crossLayerLinks = links.filter(
+      (link) => isCrossLayerGraphLink(link) && !isDerivedGraphLink(link),
+    );
     const derivedLinks = links.filter((link) => isDerivedGraphLink(link));
 
     const baseLinkSelection = zoomLayer
@@ -180,6 +250,14 @@ export default function ForceGraphDiagram({
       .join("line");
     styleGraphLinkSelection(baseLinkSelection);
 
+    const crossLayerLinkSelection = zoomLayer
+      .append("g")
+      .attr("class", "graph-links-cross-layer")
+      .selectAll("line")
+      .data(crossLayerLinks)
+      .join("line");
+    styleGraphLinkSelection(crossLayerLinkSelection);
+
     const derivedLinkSelection = zoomLayer
       .append("g")
       .attr("class", "graph-links-derived")
@@ -189,14 +267,14 @@ export default function ForceGraphDiagram({
     styleGraphLinkSelection(derivedLinkSelection);
 
     const simulation = d3
-      .forceSimulation(nodes)
+      .forceSimulation<SimNode>(nodes)
       .force(
         "link",
         d3
           .forceLink<SimNode, SimLink>(links)
           .id((node) => node.id)
-          .distance((link) => (link.dangling ? 72 : 52))
-          .strength(0.55),
+          .distance(54)
+          .strength(0.35),
       )
       .force("charge", d3.forceManyBody<SimNode>().strength(-110))
       .force("center", d3.forceCenter(width / 2, height / 2))
@@ -215,31 +293,30 @@ export default function ForceGraphDiagram({
 
     const nodeSelection = zoomLayer
       .append("g")
-      .selectAll("circle")
+      .attr("class", "graph-nodes")
+      .selectAll<SVGPathElement, SimNode>("path")
       .data(nodes)
-      .join("circle")
-      .attr("r", (node) => (node.isDangling ? 4 : 5 + Math.min(node.linkCount, 6)))
+      .join("path")
+      .attr("d", (node) =>
+        d3
+          .symbol()
+          .type(symbolForLayer(node.layer, styles))
+          .size(nodeSymbolSize(node))(),
+      )
       .attr("fill", (node) => colorByDomain(node.group))
       .attr("stroke", "#ffffff")
       .attr("stroke-width", 1.2)
       .attr("opacity", (node) => (node.isDangling ? 0.65 : 0.95))
       .style("cursor", "pointer");
-    (
-      nodeSelection as unknown as d3.Selection<
-        SVGCircleElement,
-        SimNode,
-        SVGGElement,
-        unknown
-      >
-    ).call(
+
+    nodeSelection.call(
       d3
-        .drag<SVGCircleElement, SimNode>()
+        .drag<SVGPathElement, SimNode>()
         .clickDistance(4)
         .on("start", (event, node) => {
           if (!event.active) {
             simulation.alphaTarget(0.25).restart();
           }
-          // Keep existing pinned position if user already pinned this node.
           node.fx = node.fx ?? node.x;
           node.fy = node.fy ?? node.y;
         })
@@ -251,7 +328,6 @@ export default function ForceGraphDiagram({
           if (!event.active) {
             simulation.alphaTarget(0);
           }
-          // Preserve user-arranged position for easier manual layout.
           node.fx = event.x;
           node.fy = event.y;
           node.pinnedByUser = true;
@@ -263,7 +339,6 @@ export default function ForceGraphDiagram({
         onSelectNodeRef.current(node);
       })
       .on("dblclick", (event, node) => {
-        // Double-click to release a user-pinned node back to simulation forces.
         event.stopPropagation();
         node.fx = null;
         node.fy = null;
@@ -276,7 +351,7 @@ export default function ForceGraphDiagram({
     });
 
     const updateLinkPositions = (
-      selection: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>,
+      selection: d3.Selection<d3.BaseType | SVGLineElement, SimLink, SVGGElement, unknown>,
     ) => {
       selection
         .attr("x1", (link) => (link.source as SimNode).x ?? 0)
@@ -287,17 +362,19 @@ export default function ForceGraphDiagram({
 
     simulation.on("tick", () => {
       updateLinkPositions(baseLinkSelection);
+      updateLinkPositions(crossLayerLinkSelection);
       updateLinkPositions(derivedLinkSelection);
 
-      nodeSelection
-        .attr("cx", (node) => node.x ?? 0)
-        .attr("cy", (node) => node.y ?? 0);
+      nodeSelection.attr(
+        "transform",
+        (node) => `translate(${node.x ?? 0},${node.y ?? 0})`,
+      );
     });
 
     return () => {
       simulation.stop();
     };
-  }, [graphData, dimensions, colorByDomain]);
+  }, [graphData, dimensions, colorByDomain, layerStyles]);
 
   useEffect(() => {
     const svgElement = svgRef.current;
@@ -305,7 +382,7 @@ export default function ForceGraphDiagram({
       return;
     }
     d3.select(svgElement)
-      .selectAll<SVGCircleElement, SimNode>("circle")
+      .selectAll<SVGPathElement, SimNode>("g.graph-nodes path")
       .attr("stroke", (node) => (node.id === selectedNodeId ? "#0f172a" : "#ffffff"))
       .attr("stroke-width", (node) => (node.id === selectedNodeId ? 2.5 : 1.2));
   }, [selectedNodeId]);
@@ -320,20 +397,139 @@ export default function ForceGraphDiagram({
   );
 }
 
+export function ForceGraphLayerShapeLegend({
+  layerStyles,
+  className,
+}: {
+  layerStyles: ReadonlyArray<ForceGraphLayerStyle>;
+  className?: string;
+}) {
+  if (!layerStyles.length) {
+    return null;
+  }
+  return (
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      {layerStyles.map((item) => (
+        <div
+          key={item.id}
+          className="inline-flex items-center gap-1.5 rounded-md border bg-muted/20 px-2 py-1 text-xs"
+        >
+          <svg width="12" height="12" viewBox="-6 -6 12 12" aria-hidden="true">
+            <path
+              d={
+                d3
+                  .symbol()
+                  .type(symbolForLayer(item.id, layerStyles))
+                  .size(48)() ?? undefined
+              }
+              fill="#64748b"
+              stroke="#ffffff"
+              strokeWidth="1"
+            />
+          </svg>
+          <span>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LegendColorSwatch({
+  color,
+  layer,
+  layerStyles,
+}: {
+  color: string;
+  layer?: ForceGraphLayerId;
+  layerStyles?: ReadonlyArray<ForceGraphLayerStyle>;
+}) {
+  const symbol = symbolForLayer(layer, layerStyles);
+  return (
+    <svg width="12" height="12" viewBox="-6 -6 12 12" aria-hidden="true" className="shrink-0">
+      <path
+        d={d3.symbol().type(symbol).size(52)() ?? undefined}
+        fill={color}
+        stroke="#ffffff"
+        strokeWidth="1"
+      />
+    </svg>
+  );
+}
+
 export function ForceGraphLegend({
   domains,
   hiddenDomains,
   onToggleDomain,
   domainColors,
+  layer,
+  domainLayers,
+  layerStyles,
 }: {
   domains: string[];
   hiddenDomains?: ReadonlySet<string>;
   onToggleDomain?: (domain: string) => void;
   domainColors?: DomainColorDictionary;
+  /** Default layer id for color swatches when domainLayers has no entry. */
+  layer?: ForceGraphLayerId;
+  /** Per-domain layer override (e.g. when cross-layer nodes are mixed in). */
+  domainLayers?: ReadonlyMap<string, ForceGraphLayerId> | Record<string, ForceGraphLayerId>;
+  /** Optional layer labels/shapes for grouped legends. Without this, domains render flat. */
+  layerStyles?: ReadonlyArray<ForceGraphLayerStyle>;
 }) {
   const colorByDomain = useMemo(() => {
     return createDomainColorScale(domains, domainColors);
   }, [domains, domainColors]);
+
+  const layerForDomain = useMemo(() => {
+    return (domain: string): ForceGraphLayerId | undefined => {
+      if (domainLayers instanceof Map) {
+        return domainLayers.get(domain) ?? layer;
+      }
+      if (domainLayers && typeof domainLayers === "object") {
+        return domainLayers[domain] ?? layer;
+      }
+      return layer;
+    };
+  }, [domainLayers, layer]);
+
+  const groupedDomains = useMemo(() => {
+    if (!layerStyles?.length) {
+      return [
+        {
+          layer: layer,
+          label: undefined as string | undefined,
+          domains: [...domains].sort((a, b) => a.localeCompare(b)),
+        },
+      ];
+    }
+
+    const groups = new Map<string, string[]>();
+    for (const style of layerStyles) {
+      groups.set(style.id, []);
+    }
+    const unknown: string[] = [];
+    for (const domain of domains) {
+      const domainLayer = layerForDomain(domain);
+      if (domainLayer && groups.has(domainLayer)) {
+        groups.get(domainLayer)!.push(domain);
+      } else {
+        unknown.push(domain);
+      }
+    }
+    const ordered = layerStyles.map((style) => ({
+      layer: style.id,
+      label: style.label,
+      domains: (groups.get(style.id) || []).sort((a, b) => a.localeCompare(b)),
+    }));
+    if (unknown.length) {
+      ordered.push({
+        layer: "__other__",
+        label: "Other",
+        domains: unknown.sort((a, b) => a.localeCompare(b)),
+      });
+    }
+    return ordered.filter((group) => group.domains.length > 0);
+  }, [domains, layer, layerForDomain, layerStyles]);
 
   if (domains.length === 0) {
     return null;
@@ -341,54 +537,63 @@ export function ForceGraphLegend({
 
   const hidden = hiddenDomains ?? new Set<string>();
   const toggleable = typeof onToggleDomain === "function";
+  const showGroupLabels = groupedDomains.length > 1;
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {domains.map((domain) => {
-        const isHidden = hidden.has(domain);
-        const label = domain.replace(/_/g, " ");
-        const content = (
-          <>
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{
-                backgroundColor: isHidden
-                  ? LEGEND_HIDDEN_SWATCH_COLOR
-                  : colorByDomain(domain),
-              }}
-            />
-            <span className="capitalize">{label}</span>
-          </>
-        );
+    <div className="flex flex-col gap-2">
+      {groupedDomains.map((group) => (
+        <div key={group.layer ?? "default"} className="flex flex-wrap items-center gap-2">
+          {showGroupLabels && group.label ? (
+            <span className="mr-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {group.label}
+            </span>
+          ) : null}
+          {group.domains.map((domain) => {
+            const isHidden = hidden.has(domain);
+            const label = domain.replace(/_/g, " ");
+            const content = (
+              <>
+                <LegendColorSwatch
+                  layer={group.layer}
+                  layerStyles={layerStyles}
+                  color={
+                    isHidden ? LEGEND_HIDDEN_SWATCH_COLOR : colorByDomain(domain)
+                  }
+                />
+                <span className="capitalize">{label}</span>
+              </>
+            );
 
-        if (!toggleable) {
-          return (
-            <div
-              key={domain}
-              className="inline-flex items-center gap-1.5 rounded-md border bg-muted/20 px-2 py-1 text-xs"
-            >
-              {content}
-            </div>
-          );
-        }
+            if (!toggleable) {
+              return (
+                <div
+                  key={domain}
+                  className="inline-flex items-center gap-1.5 rounded-md border bg-muted/20 px-2 py-1 text-xs"
+                >
+                  {content}
+                </div>
+              );
+            }
 
-        return (
-          <button
-            key={domain}
-            type="button"
-            aria-pressed={!isHidden}
-            onClick={() => onToggleDomain(domain)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors",
-              isHidden
-                ? "border-muted bg-muted/30 text-muted-foreground hover:bg-muted/40"
-                : "border bg-muted/20 hover:bg-muted/30",
-            )}
-          >
-            {content}
-          </button>
-        );
-      })}
+            return (
+              <button
+                key={domain}
+                type="button"
+                aria-pressed={!isHidden}
+                onClick={() => onToggleDomain(domain)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors",
+                  isHidden
+                    ? "border-muted bg-muted/30 text-muted-foreground hover:bg-muted/40"
+                    : "border bg-muted/20 hover:bg-muted/30",
+                )}
+              >
+                {content}
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
