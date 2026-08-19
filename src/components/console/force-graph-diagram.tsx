@@ -486,7 +486,7 @@ export function ForceGraphLegend({
         return domainLayers.get(domain) ?? layer;
       }
       if (domainLayers && typeof domainLayers === "object") {
-        return domainLayers[domain] ?? layer;
+        return (domainLayers as Record<string, ForceGraphLayerId>)[domain] ?? layer;
       }
       return layer;
     };

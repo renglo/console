@@ -120,9 +120,10 @@ export default function HierarchicalEdgeBundling({
 
     const hierarchyByPath = new Map<string, HierNode>();
     for (const node of root.descendants()) {
+      if (!node.id) continue;
       hierarchyByPath.set(node.id, node as HierNode);
     }
-    const leafNodes = root.leaves().filter((node) => leafByPath.has(node.id)) as HierNode[];
+    const leafNodes = root.leaves().filter((node) => node.id && leafByPath.has(node.id)) as HierNode[];
 
     const line = d3
       .lineRadial<HierNode>()
@@ -223,7 +224,7 @@ export default function HierarchicalEdgeBundling({
       .append("circle")
       .attr("r", 2.5)
       .attr("fill", (node) =>
-        colorByDomain(leafByPath.get(node.id)?.universalDomain ?? "other")
+        colorByDomain(leafByPath.get(node.id ?? "")?.universalDomain ?? "other")
       )
       .attr("opacity", 0.95)
       .style("pointer-events", "none");
@@ -235,7 +236,7 @@ export default function HierarchicalEdgeBundling({
       .style("pointer-events", "all")
       .style("cursor", "pointer")
       .on("mouseenter", (_event, node) => {
-        highlightLeaf(node.id);
+        highlightLeaf(node.id ?? "");
       })
       .on("mouseleave", () => {
         restoreLinkStyles();
@@ -250,7 +251,7 @@ export default function HierarchicalEdgeBundling({
       .style("font-size", "10px")
       .style("fill", "#334155")
       .style("pointer-events", "none")
-      .text((node) => leafByPath.get(node.id)?.label ?? node.id);
+      .text((node) => leafByPath.get(node.id ?? "")?.label ?? node.id ?? "");
   }, [data, dimensions, colorByDomain]);
 
   return (

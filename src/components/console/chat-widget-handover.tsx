@@ -49,7 +49,6 @@ export default function ChatWidgetHandover({
   key_id,
   item,
   messageUp,
-  payload = {},
 }: ChatWidgetHandoverProps) {
   useWebSocket({
     onMessage: (data) => {

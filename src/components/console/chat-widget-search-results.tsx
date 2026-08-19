@@ -41,7 +41,7 @@ export default function ChatWidgetSearchResults({
   const question = data.question ?? "Choose the one you mean.";
   const entityLabel = (data.entity_type ?? "item").replace("_", " ");
 
-  const handleResultClick = (id: string, index: number) => {
+  const handleResultClick = (_id: string, index: number) => {
     if (!messageUp) return;
     const selection = String(index + 1);
     if (isConnected) {

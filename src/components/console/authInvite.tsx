@@ -45,7 +45,7 @@ export default function AuthInvite() {
   const [pass, setPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
 
-  const [transaction, setTransaction] = useState<TransactionType>({});
+  const [, setTransaction] = useState<TransactionType>({});
   const [warning, setWarning] = useState('');
 
   const handleTeamInviteSubmit = async (e: FormEvent<HTMLFormElement>) => {
