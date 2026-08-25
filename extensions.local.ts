@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadEnv } from "vite";
@@ -21,17 +22,22 @@ const extensions = bootstrapExtensions
   .map((ext) => ext.trim())
   .filter(Boolean);
 
-// Dynamically generate extension aliases
+// Local checkout wins when the tree exists (dev + hybrid CI).
+// Production with npm pins leaves the specifier unresolved so Vite
+// uses node_modules/@renglo/<name>.
 const dynamicAliases: Record<string, string> = {};
 for (const extension of extensions) {
-  dynamicAliases[`@renglo/${extension}`] = path.resolve(
-    __dirname,
-    `../extensions/${extension}/ui`
-  );
+  const localUi = path.resolve(__dirname, `../extensions/${extension}/ui`);
+  if (fs.existsSync(localUi)) {
+    dynamicAliases[`@renglo/${extension}`] = localUi;
+  }
 }
+
+const localExtensionsRoot = path.resolve(__dirname, "../extensions");
 
 export const extensionAliases = {
   ...dynamicAliases,
-  // General alias for dynamic imports
-  "@extensions": path.resolve(__dirname, "../extensions"),
+  ...(fs.existsSync(localExtensionsRoot)
+    ? { "@extensions": localExtensionsRoot }
+    : {}),
 };
