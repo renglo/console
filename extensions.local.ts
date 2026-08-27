@@ -25,10 +25,13 @@ const extensions = bootstrapExtensions
 // Local checkout wins when the tree exists (dev + hybrid CI).
 // Production with npm pins leaves the specifier unresolved so Vite
 // uses node_modules/@renglo/<name>.
+// Map both @renglo/<name> and @renglo/<name>/ui so package-style
+// imports (@renglo/data/ui/components/...) resolve under local ui/.
 const dynamicAliases: Record<string, string> = {};
 for (const extension of extensions) {
   const localUi = path.resolve(__dirname, `../extensions/${extension}/ui`);
   if (fs.existsSync(localUi)) {
+    dynamicAliases[`@renglo/${extension}/ui`] = localUi;
     dynamicAliases[`@renglo/${extension}`] = localUi;
   }
 }
