@@ -33,6 +33,10 @@ interface Plan {
   steps: PlanStep[]
 }
 
+interface PlanEnvelope {
+  plan?: Plan | Plan[]
+}
+
 interface PlanPreviewProps {
   key_id?: string | number
   item: {
@@ -42,22 +46,23 @@ interface PlanPreviewProps {
   }
 }
 
-type PlanEnvelope = { plan?: Plan | Plan[] }
-
 export default function ChatWidgetPlanPreview({ item }: PlanPreviewProps) {
   // Content is handler-defined; may be string (JSON), array, or dict.
   // Handlers (generate_plan, modify_plan) return { plan, intent } or [{ plan }].
-  let content: PlanEnvelope | PlanEnvelope[] | string | undefined | null = item?._out?.content
+  let content: string | PlanEnvelope | PlanEnvelope[] | undefined = item?._out?.content
   if (typeof content === 'string') {
     try {
       content = JSON.parse(content) as PlanEnvelope | PlanEnvelope[]
     } catch {
-      content = null
+      content = undefined
     }
   }
-  const first: PlanEnvelope | null = Array.isArray(content)
-    ? content[0] ?? null
-    : (content && typeof content === 'object' ? content : null)
+  const first: PlanEnvelope | null =
+    Array.isArray(content) && content.length > 0
+      ? content[0]
+      : content && typeof content === 'object' && !Array.isArray(content)
+        ? content
+        : null
   const planData = first?.plan ?? null
   const actualPlan = Array.isArray(planData) ? planData[0] : planData
 

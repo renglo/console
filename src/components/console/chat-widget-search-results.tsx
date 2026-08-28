@@ -41,7 +41,7 @@ export default function ChatWidgetSearchResults({
   const question = data.question ?? "Choose the one you mean.";
   const entityLabel = (data.entity_type ?? "item").replace("_", " ");
 
-  const handleResultClick = (_id: string, index: number) => {
+  const handleResultClick = (index: number) => {
     if (!messageUp) return;
     const selection = String(index + 1);
     if (isConnected) {
@@ -75,7 +75,7 @@ export default function ChatWidgetSearchResults({
           <Card
             key={r.id}
             className="cursor-pointer transition-colors hover:bg-muted/60 hover:border-primary/40"
-            onClick={() => handleResultClick(r.id, idx)}
+            onClick={() => handleResultClick(idx)}
           >
             <CardHeader className="py-2 px-3">
               <div className="flex items-center justify-between">

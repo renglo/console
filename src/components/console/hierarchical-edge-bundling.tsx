@@ -39,6 +39,10 @@ interface HierarchicalEdgeBundlingProps {
 
 type HierNode = d3.HierarchyPointNode<{ path: string }>;
 
+function hierarchyPath(node: HierNode): string {
+  return node.data.path;
+}
+
 export default function HierarchicalEdgeBundling({
   data,
   domainColors,
@@ -120,10 +124,11 @@ export default function HierarchicalEdgeBundling({
 
     const hierarchyByPath = new Map<string, HierNode>();
     for (const node of root.descendants()) {
-      if (!node.id) continue;
-      hierarchyByPath.set(node.id, node as HierNode);
+      hierarchyByPath.set(hierarchyPath(node as HierNode), node as HierNode);
     }
-    const leafNodes = root.leaves().filter((node) => node.id && leafByPath.has(node.id)) as HierNode[];
+    const leafNodes = root
+      .leaves()
+      .filter((node) => leafByPath.has(hierarchyPath(node as HierNode))) as HierNode[];
 
     const line = d3
       .lineRadial<HierNode>()
@@ -207,7 +212,7 @@ export default function HierarchicalEdgeBundling({
             ? highlightLinkWidth(entry)
             : defaultLinkWidth(entry),
         );
-      leafGroup.style("opacity", (node) => (node.id === leafPath ? 1 : 0.25));
+      leafGroup.style("opacity", (node) => (hierarchyPath(node) === leafPath ? 1 : 0.25));
     };
 
     const leafGroup = rootGroup
@@ -224,7 +229,7 @@ export default function HierarchicalEdgeBundling({
       .append("circle")
       .attr("r", 2.5)
       .attr("fill", (node) =>
-        colorByDomain(leafByPath.get(node.id ?? "")?.universalDomain ?? "other")
+        colorByDomain(leafByPath.get(hierarchyPath(node))?.universalDomain ?? "other")
       )
       .attr("opacity", 0.95)
       .style("pointer-events", "none");
@@ -236,7 +241,7 @@ export default function HierarchicalEdgeBundling({
       .style("pointer-events", "all")
       .style("cursor", "pointer")
       .on("mouseenter", (_event, node) => {
-        highlightLeaf(node.id ?? "");
+        highlightLeaf(hierarchyPath(node));
       })
       .on("mouseleave", () => {
         restoreLinkStyles();
@@ -251,7 +256,7 @@ export default function HierarchicalEdgeBundling({
       .style("font-size", "10px")
       .style("fill", "#334155")
       .style("pointer-events", "none")
-      .text((node) => leafByPath.get(node.id ?? "")?.label ?? node.id ?? "");
+      .text((node) => leafByPath.get(hierarchyPath(node))?.label ?? hierarchyPath(node));
   }, [data, dimensions, colorByDomain]);
 
   return (

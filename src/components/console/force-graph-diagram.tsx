@@ -101,9 +101,14 @@ function isCrossLayerGraphLink(link: SimLink): boolean {
   return link.crossLayer === true;
 }
 
-function styleGraphLinkSelection(
-  selection: d3.Selection<d3.BaseType | SVGLineElement, SimLink, SVGGElement, unknown>,
-) {
+type GraphLinkSelection = d3.Selection<
+  SVGLineElement | d3.BaseType,
+  SimLink,
+  SVGGElement,
+  unknown
+>;
+
+function styleGraphLinkSelection(selection: GraphLinkSelection) {
   selection
     .attr("stroke-width", (link) => {
       if (isDerivedGraphLink(link)) return 2.5;
@@ -350,9 +355,7 @@ export default function ForceGraphDiagram({
       onSelectNodeRef.current(null);
     });
 
-    const updateLinkPositions = (
-      selection: d3.Selection<d3.BaseType | SVGLineElement, SimLink, SVGGElement, unknown>,
-    ) => {
+    const updateLinkPositions = (selection: GraphLinkSelection) => {
       selection
         .attr("x1", (link) => (link.source as SimNode).x ?? 0)
         .attr("y1", (link) => (link.source as SimNode).y ?? 0)
