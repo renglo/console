@@ -40,8 +40,8 @@ import {
 import DialogPut from '@/components/console/dialog-put'
 import { formatBlueprintFieldValue } from "@/lib/blueprint-field-display"
 import { fileNameFromUri, storedFileHref } from "@/lib/image-upload"
-import RadialGraph from "@renglo/data/ui/components/radial-graph"
-import { buildNodeEdgesRadialGraphModel } from "@renglo/data/ui/components/radial-graph-models"
+import RadialGraph from "@renglo/data/ui/components/radial-graph.tsx"
+import { buildNodeEdgesRadialGraphModel } from "@renglo/data/ui/components/radial-graph-models.ts"
 import {
   getBlueprintIndexPathFieldSet,
   parseBlueprintSourceSpec,
