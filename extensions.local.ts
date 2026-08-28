@@ -5,13 +5,17 @@ import { loadEnv } from "vite";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Load environment variables using Vite's loadEnv
-// Try development mode first, fallback to production
+// loadEnv reads .env files; CI injects VITE_* via process.env (see deploy_console.yml).
 const mode = process.env.NODE_ENV || "development";
 const env = loadEnv(mode, __dirname, "");
 
+const viteDevMode =
+  process.env.VITE_DEV_MODE === "true" ||
+  env.VITE_DEV_MODE === "true";
+
 // Get bootstrap extensions from environment (VITE_EXTENSIONS is canonical; VITE_BOOTSTRAP_PLUGINS kept for compatibility)
 const bootstrapExtensions =
+  process.env.VITE_EXTENSIONS ||
   env.VITE_EXTENSIONS ||
   env.VITE_BOOTSTRAP_PLUGINS ||
   "data,schd,knowledge"; // fallback default
@@ -37,7 +41,11 @@ const localExtensionsRoot = path.resolve(__dirname, "../extensions");
 
 export const extensionAliases = {
   ...dynamicAliases,
-  ...(fs.existsSync(localExtensionsRoot)
+  // Do not map @extensions -> ../extensions in production/CI builds.
+  // That alias sends @extensions/data/ui/... to extensions/data/... even when
+  // data is npm-pinned and never cloned. renglo-extension-resolver.ts handles
+  // @extensions/<ext>/ui/... (git checkout or node_modules/@renglo/<ext>).
+  ...(fs.existsSync(localExtensionsRoot) && viteDevMode
     ? { "@extensions": localExtensionsRoot }
     : {}),
 };
