@@ -23,12 +23,6 @@ import { completeNewPasswordChallenge, signIn } from './authService';
 import { finishAuthenticatedSession } from './authSession';
 
 
-interface TransactionType {
-    success?: string;
-    status?: string;
-    [key: string]: any;
-}
-
 export default function AuthInvite() {
   const location = useLocation();
   const queryParams = useMemo(
@@ -45,7 +39,6 @@ export default function AuthInvite() {
   const [pass, setPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
 
-  const [transaction, setTransaction] = useState<TransactionType>({});
   const [warning, setWarning] = useState('');
 
   const handleTeamInviteSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -73,7 +66,6 @@ export default function AuthInvite() {
         });
 
         const rs = await response.json();
-        setTransaction(rs);
 
         if (response.ok) {
             toast({

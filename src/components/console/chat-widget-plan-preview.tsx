@@ -33,6 +33,10 @@ interface Plan {
   steps: PlanStep[]
 }
 
+interface PlanEnvelope {
+  plan?: Plan | Plan[]
+}
+
 interface PlanPreviewProps {
   key_id?: string | number
   item: {
@@ -45,15 +49,20 @@ interface PlanPreviewProps {
 export default function ChatWidgetPlanPreview({ item }: PlanPreviewProps) {
   // Content is handler-defined; may be string (JSON), array, or dict.
   // Handlers (generate_plan, modify_plan) return { plan, intent } or [{ plan }].
-  let content = item?._out?.content
+  let content: string | PlanEnvelope | PlanEnvelope[] | undefined = item?._out?.content
   if (typeof content === 'string') {
     try {
-      content = JSON.parse(content)
+      content = JSON.parse(content) as PlanEnvelope | PlanEnvelope[]
     } catch {
-      content = null
+      content = undefined
     }
   }
-  const first = Array.isArray(content) && content.length > 0 ? content[0] : (content && typeof content === 'object' ? content : null)
+  const first: PlanEnvelope | null =
+    Array.isArray(content) && content.length > 0
+      ? content[0]
+      : content && typeof content === 'object' && !Array.isArray(content)
+        ? content
+        : null
   const planData = first?.plan ?? null
   const actualPlan = Array.isArray(planData) ? planData[0] : planData
 
@@ -91,7 +100,7 @@ export default function ChatWidgetPlanPreview({ item }: PlanPreviewProps) {
 
       {/* Plan Steps - Compact Checklist */}
       <div className="space-y-1.5">
-        {actualPlan.steps.map((step, index) => {
+        {actualPlan.steps.map((step: PlanStep, index: number) => {
           const inputsStr = step.inputs && Object.keys(step.inputs).length > 0
             ? Object.entries(step.inputs)
                 .map(([key, value]) => {

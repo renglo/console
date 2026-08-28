@@ -566,7 +566,7 @@ function extractReferenceId(raw: unknown): string {
 
 function buildSourceReferenceObject(
   raw: unknown,
-  meta: SourceFieldMeta,
+  _meta: SourceFieldMeta,
   override: SourceOverrideState,
 ): Record<string, unknown> | null {
   const value = extractReferenceId(raw);

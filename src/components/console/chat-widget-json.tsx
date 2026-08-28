@@ -7,7 +7,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 
 
-export default function ChatWidgetJson({ key, item, active = false, label = 'JSON' }: { key: string; item: { _out: string }; active?: boolean }) {
+export default function ChatWidgetJson({ key, item, active = false, label = 'JSON' }: { key: string; item: { _out: string }; active?: boolean; label?: string }) {
 
 
 
