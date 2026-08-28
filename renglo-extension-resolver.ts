@@ -7,8 +7,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const SOURCE_EXTENSIONS = ["", ".tsx", ".ts", ".jsx", ".js", "/index.tsx", "/index.ts"];
 
-/** @renglo/<extension>/<path-within-ui> — shared by cloned extensions and npm packages. */
+/** @renglo/<extension>/<path-within-ui> */
 const RENGLO_SUBPATH = /^@renglo\/([^/]+)\/(.+)$/;
+/** @extensions/<extension>/ui/<path-within-ui> */
+const EXTENSIONS_UI_SUBPATH = /^@extensions\/([^/]+)\/ui\/(.+)$/;
 
 function resolveExistingFile(basePath: string): string | null {
   for (const suffix of SOURCE_EXTENSIONS) {
@@ -20,12 +22,34 @@ function resolveExistingFile(basePath: string): string | null {
   return null;
 }
 
+function resolveExtensionUiFile(
+  extensionsRoot: string,
+  nodeModulesRoot: string,
+  extension: string,
+  subpath: string,
+): string | null {
+  const candidates = [
+    path.join(extensionsRoot, extension, "ui", subpath),
+    path.join(nodeModulesRoot, "@renglo", extension, subpath),
+  ];
+
+  for (const basePath of candidates) {
+    const resolved = resolveExistingFile(basePath);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return null;
+}
+
 /**
- * Resolve cross-extension imports such as `@renglo/data/pages/tool_data_crud`.
+ * Resolve cross-extension UI imports for both conventions:
+ *   @renglo/data/pages/tool_data_crud
+ *   @extensions/data/ui/pages/chat_inspect
  *
- * Local checkouts are aliased to `extensions/<name>/ui` (see extensions.local.ts).
- * Published packages live under `node_modules/@renglo/<name>/` with the same layout.
- * npm export maps on older pins may omit `./pages/*`; this plugin keeps both paths working.
+ * Local git checkouts win when present; npm-pinned extensions fall back to
+ * node_modules/@renglo/<name>/ with the same ui-relative layout.
  */
 export function rengloExtensionResolver(): Plugin {
   const extensionsRoot = path.resolve(__dirname, "../extensions");
@@ -35,22 +59,16 @@ export function rengloExtensionResolver(): Plugin {
     name: "renglo-extension-resolver",
     enforce: "pre",
     resolveId(source) {
-      const match = source.match(RENGLO_SUBPATH);
-      if (!match) {
-        return null;
+      const rengloMatch = source.match(RENGLO_SUBPATH);
+      if (rengloMatch) {
+        const [, extension, subpath] = rengloMatch;
+        return resolveExtensionUiFile(extensionsRoot, nodeModulesRoot, extension, subpath);
       }
 
-      const [, extension, subpath] = match;
-      const candidates = [
-        path.join(extensionsRoot, extension, "ui", subpath),
-        path.join(nodeModulesRoot, "@renglo", extension, subpath),
-      ];
-
-      for (const basePath of candidates) {
-        const resolved = resolveExistingFile(basePath);
-        if (resolved) {
-          return resolved;
-        }
+      const extensionsMatch = source.match(EXTENSIONS_UI_SUBPATH);
+      if (extensionsMatch) {
+        const [, extension, subpath] = extensionsMatch;
+        return resolveExtensionUiFile(extensionsRoot, nodeModulesRoot, extension, subpath);
       }
 
       return null;
