@@ -21,6 +21,7 @@ import { useLocation } from 'react-router-dom';
 import { useState, FormEvent, useMemo } from 'react';
 import { completeNewPasswordChallenge, signIn } from './authService';
 import { finishAuthenticatedSession } from './authSession';
+import { wlLogoUrl } from '@/lib/branding';
 
 
 export default function AuthInvite() {
@@ -160,7 +161,7 @@ export default function AuthInvite() {
         <CardTitle className="text-xl">
             <div className="flex mb-6">
             {isAdminSetup ? 'Set up your admin account' : 'Access your new team'}
-            <img src={`${import.meta.env.VITE_WL_LOGO}`} className="w-[40px] ml-auto" alt="Logo" />
+            <img src={wlLogoUrl()} className="w-[40px] ml-auto" alt="Logo" />
             </div>
         </CardTitle>
         <CardDescription>

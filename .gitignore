@@ -32,9 +32,12 @@ dist-ssr
 tsconfig.app.tsbuildinfo
 tsconfig.node.tsbuildinfo
 
-# Logo
-small_logo.jpg
-large_logo.jpg
+# Tenant branding lives in the sibling branding/ package — never commit it here
+public/small_logo.png
+public/small_logo.jpg
+public/large_logo.jpg
+public/background.png
+public/background_login.png
 
 # Dev images
 *_dev.jpg

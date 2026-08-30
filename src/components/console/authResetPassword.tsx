@@ -12,6 +12,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useState, FormEvent } from 'react';
 import { CognitoIdentityProviderClient, ConfirmForgotPasswordCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { wlLogoUrl } from '@/lib/branding';
 
 /** Cognito blocks password reset while the user is in FORCE_CHANGE_PASSWORD. */
 function isPasswordChallengeResetError(error: unknown): boolean {
@@ -80,7 +81,7 @@ const ResetPassword = () => {
         <CardTitle className="text-xl">
         <div className="flex mb-6">
           Reset Password
-          <img src={`${import.meta.env.VITE_WL_LOGO}`} className="w-[80px] ml-auto" alt="Logo" />
+          <img src={wlLogoUrl()} className="w-[80px] ml-auto" alt="Logo" />
         </div>  
         </CardTitle>
         <CardDescription>

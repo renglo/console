@@ -43,6 +43,7 @@ import SheetNav from "../../sheetnav"
 import { useNavigate,NavLink,useParams,useLocation } from 'react-router-dom'
 import {GlobalContext} from "@/components/console/global-context"
 import { userInitialsFromSession, userThumbnailUrl, warmPortfolioThumbnailCache } from "@/lib/image-upload"
+import { wlLogoUrl } from "@/lib/branding"
 import { sortByName } from "@/lib/sort-entities"
 
 import { useState, useEffect, useContext } from 'react';
@@ -167,7 +168,7 @@ export default function Root() {
                 to={`/home`}
                 className="group flex h-16 w-16 shrink-0 items-center justify-center gap-2 mt-0 mb-4 md:text-base"     
             >
-                <img src={`${import.meta.env.VITE_WL_LOGO}`} className="ml-auto" alt="Logo" />
+                <img src={wlLogoUrl()} className="ml-auto" alt="Logo" />
                 <span className="sr-only">Logo</span>
             </NavLink>      
           </div> 
