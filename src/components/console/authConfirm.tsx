@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useState } from 'react';
 import { confirmSignUp } from "@/components/console/authService";
+import { wlLogoUrl } from '@/lib/branding';
 
 
 export default function AuthConfirm() {
@@ -48,7 +49,7 @@ export default function AuthConfirm() {
         <CardTitle className="text-xl">
             <div className="flex mb-6">
             Confirmation 
-            <img src={`${import.meta.env.VITE_WL_LOGO}`} className="w-[80px] ml-auto" alt="Logo" />
+            <img src={wlLogoUrl()} className="w-[80px] ml-auto" alt="Logo" />
             </div>    
         </CardTitle>
         <CardDescription>

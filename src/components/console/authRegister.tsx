@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useState } from 'react';
 import { signUp } from './authService';
+import { wlLogoUrl } from '@/lib/branding';
 
 
 
@@ -46,7 +47,7 @@ export default function AuthRegister() {
         <CardTitle className="text-xl">
         <div className="flex mb-6">
           Sign Up 
-          <img src={`${import.meta.env.VITE_WL_LOGO}`}  className="w-[80px] ml-auto" alt="Logo" />
+          <img src={wlLogoUrl()}  className="w-[80px] ml-auto" alt="Logo" />
         </div>  
         </CardTitle>
         <CardDescription>

@@ -1,8 +1,8 @@
-
 import { useState } from 'react';
     
 import { signIn } from './authService';
 import { finishAuthenticatedSession } from './authSession';
+import { captions, wlBackgroundUrl } from '@/lib/branding';
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,7 +48,7 @@ export default function AuthLogin() {
       };
 
 
-    const backgroundUrl = import.meta.env.VITE_WL_BACKGROUND;
+    const backgroundUrl = wlBackgroundUrl();
 
     return (
         <div
@@ -61,9 +61,9 @@ export default function AuthLogin() {
           <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
             <div className="mx-auto grid w-full max-w-[400px] gap-6 rounded-lg border bg-background/95 p-8 shadow-lg backdrop-blur-sm">
               <div className="grid gap-2 text-center">
-                  <h1 className="text-3xl font-bold">Login</h1>
+                  <h1 className="text-3xl font-bold">{captions.loginTitle}</h1>
                   <p className="text-balance text-muted-foreground">
-                  Enter your email below to login to your account
+                  {captions.loginSubtitle}
                   </p>
               </div>
               <div className="grid gap-4">

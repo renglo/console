@@ -1,9 +1,42 @@
 import react from "@vitejs/plugin-react"
+import fs from "node:fs"
+import { createRequire } from "node:module"
+import path from "node:path"
 import { defineConfig, loadEnv } from "vite"
 import { fileURLToPath } from 'url'
 import { rengloExtensionResolver } from "./renglo-extension-resolver"
-//import path from 'path';
 
+const require = createRequire(import.meta.url)
+const consoleRoot = path.dirname(fileURLToPath(import.meta.url))
+
+function resolveWlPackageDir(): string | null {
+  try {
+    return path.dirname(require.resolve("@stanley/wl/package.json"))
+  } catch {
+    // not in node_modules
+  }
+  // Same layout as a BOM console checkout (sibling) or this workspace (ops/).
+  for (const rel of ["../stanley-wl", "../ops/stanley-wl"]) {
+    const dir = path.resolve(consoleRoot, rel)
+    const pkgFile = path.join(dir, "package.json")
+    if (!fs.existsSync(pkgFile)) continue
+    try {
+      const name = JSON.parse(fs.readFileSync(pkgFile, "utf8")).name
+      if (name === "@stanley/wl") return dir
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+function wlAlias(): Record<string, string> {
+  const dir = resolveWlPackageDir()
+  if (dir) return { "@wl": dir, "@stanley/wl": dir }
+  return {
+    "@wl": fileURLToPath(new URL("./src/lib/wl-fallback.ts", import.meta.url)),
+  }
+}
 
 // Try to load local extension aliases if the file exists
 let extensionAliases = {};
@@ -28,6 +61,7 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
         ...extensionAliases,
+        ...wlAlias(),
       },
       // Preserve symlinks for workspace packages
       preserveSymlinks: true,

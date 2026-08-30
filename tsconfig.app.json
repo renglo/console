@@ -24,6 +24,10 @@
       "@/*": [
         "./src/*"
       ],
+      "@wl": [
+        "./node_modules/@stanley/wl",
+        "./src/lib/wl-fallback.ts"
+      ],
       "@extensions/*": [
         "../extensions/*"
       ]
