@@ -2,7 +2,7 @@
   "name": "console",
   "homepage": ".",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1-rc.1",
   "license": "MIT",
   "type": "module",
   "scripts": {
