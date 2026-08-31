@@ -6,41 +6,61 @@ import { loadEnv } from "vite";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Load environment variables using Vite's loadEnv
-// Try development mode first, fallback to production
 const mode = process.env.NODE_ENV || "development";
 const env = loadEnv(mode, __dirname, "");
 
-// Get bootstrap extensions from environment (VITE_EXTENSIONS is canonical; VITE_BOOTSTRAP_PLUGINS kept for compatibility)
+// VITE_EXTENSIONS is canonical; VITE_BOOTSTRAP_PLUGINS kept for compatibility.
 const bootstrapExtensions =
   env.VITE_EXTENSIONS ||
   env.VITE_BOOTSTRAP_PLUGINS ||
-  "data,schd,knowledge"; // fallback default
+  "data,schd,knowledge";
 
-// Parse the extensions list
 const extensions = bootstrapExtensions
   .split(",")
   .map((ext) => ext.trim())
   .filter(Boolean);
 
-// Local checkout wins when the tree exists (dev + hybrid CI).
-// Production with npm pins leaves the specifier unresolved so Vite
-// uses node_modules/@renglo/<name>.
-// Map both @renglo/<name> and @renglo/<name>/ui so package-style
-// imports (@renglo/data/ui/components/...) resolve under local ui/.
-const dynamicAliases: Record<string, string> = {};
-for (const extension of extensions) {
-  const localUi = path.resolve(__dirname, `../extensions/${extension}/ui`);
+/**
+ * Resolve where an extension's UI entrypoints live for this console checkout.
+ *
+ * Three renders, one precedence rule:
+ *   1. monorepo dev (dev.bat) — git clone at ../extensions/<handle>/ui wins
+ *   2. renglo-ci compose — npm pin in node_modules/@renglo/<handle>
+ *   3. arbitium-bom deploy_console — same npm path from CodeArtifact
+ *
+ * Do not add a blanket "@extensions" -> "../extensions" alias: in compose/CI the
+ * extensions/ tree is partial (e.g. pes only) and router imports like
+ * @extensions/<handle>/ui/<handle>.tsx would miss npm packages.
+ */
+export function resolveExtensionUiRoot(
+  handle: string,
+  consoleDir: string = __dirname,
+): string | undefined {
+  const localUi = path.resolve(consoleDir, `../extensions/${handle}/ui`);
   if (fs.existsSync(localUi)) {
-    dynamicAliases[`@renglo/${extension}/ui`] = localUi;
-    dynamicAliases[`@renglo/${extension}`] = localUi;
+    return localUi;
   }
+
+  const npmRoot = path.resolve(consoleDir, `node_modules/@renglo/${handle}`);
+  if (fs.existsSync(npmRoot)) {
+    return npmRoot;
+  }
+
+  return undefined;
 }
 
-const localExtensionsRoot = path.resolve(__dirname, "../extensions");
+const dynamicAliases: Record<string, string> = {};
+for (const extension of extensions) {
+  const uiRoot = resolveExtensionUiRoot(extension);
+  if (!uiRoot) {
+    continue;
+  }
 
-export const extensionAliases = {
-  ...dynamicAliases,
-  ...(fs.existsSync(localExtensionsRoot)
-    ? { "@extensions": localExtensionsRoot }
-    : {}),
-};
+  // Router/nav/onboarding: @extensions/<handle>/ui/<handle>.tsx
+  dynamicAliases[`@extensions/${extension}/ui`] = uiRoot;
+  // Direct package imports: @renglo/data/ui/components/...
+  dynamicAliases[`@renglo/${extension}/ui`] = uiRoot;
+  dynamicAliases[`@renglo/${extension}`] = uiRoot;
+}
+
+export const extensionAliases = dynamicAliases;
