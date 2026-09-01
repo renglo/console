@@ -221,6 +221,48 @@ export function storedFileHref(uri: string): string | null {
   return `${import.meta.env.VITE_API_URL}/${trimmed}`;
 }
 
+function bearerToken(): string {
+  const token = sessionStorage.getItem("accessToken") || sessionStorage.accessToken;
+  if (!token) {
+    throw new Error("Session expired. Please reload.");
+  }
+  return token;
+}
+
+/**
+ * GET a stored `_files/...` object with the session Bearer token.
+ * The API authorizes then 302s to a short-lived S3 URL; `redirect: "follow"`
+ * resolves the bytes.
+ */
+export async function fetchStoredFile(uri: string): Promise<Blob> {
+  const url = storedFileHref(uri);
+  if (!url) {
+    throw new Error("Invalid file URI");
+  }
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${bearerToken()}`,
+    },
+    redirect: "follow",
+  });
+
+  if (!response.ok) {
+    let message = `Failed to fetch file (${response.status})`;
+    try {
+      const body = await response.json();
+      if (typeof body?.message === "string" && body.message) message = body.message;
+      else if (typeof body?.error === "string" && body.error) message = body.error;
+    } catch {
+      // ignore non-JSON error bodies
+    }
+    throw new Error(message);
+  }
+
+  return response.blob();
+}
+
 export function fileNameFromUri(uri: string): string {
   const trimmed = uri.trim();
   if (!trimmed) return "";
