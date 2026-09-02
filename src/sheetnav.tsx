@@ -1,27 +1,17 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WindowSizeProvider } from '@/contexts/WindowSizeContext';
 import { useContext } from 'react';
 import { GlobalContext } from "@/components/console/global-context";
+import { lazyExtensionUi, resolveToolHandle } from "@/lib/extension-ui";
 
-
-const importToolSheetNav = (tool: string) => {
-    return lazy(() => 
-        import(`@extensions/${tool}/ui/navigation/${tool}_sheetnav.tsx`)
-            .catch(() => {
-                // Return a simple component if import fails
-                return {
-                    default: () => null
-                };
-            })
-    );
-};
+const importToolSheetNav = (tool: string) => lazyExtensionUi("sheetnav", tool);
 
 interface SheetNavProps {
-    portfolio: string;
-    org: string;
-    tool: string;
-    section: string;
+    portfolio?: string;
+    org?: string;
+    tool?: string;
+    section?: string;
 }
 
 interface Portfolio {
@@ -37,13 +27,16 @@ export default function SheetNav({portfolio, org, tool, section}: SheetNavProps)
     const navigate = useNavigate();
     const context = useContext(GlobalContext);
 
-    if (!context || !tool) {
+    if (!context || !tool || tool === "undefined") {
         return null;
     }
 
     const { tree } = context as unknown as { tree: { portfolios: Record<string, Portfolio> } };
-    const portfolioTools = tree?.portfolios?.[portfolio]?.tools || {};
-    const toolHandle = portfolioTools[tool]?.handle || tool;
+    const portfolioTools = (portfolio && tree?.portfolios?.[portfolio]?.tools) || {};
+    const toolHandle = resolveToolHandle(portfolioTools, tool);
+    if (!toolHandle) {
+        return null;
+    }
 
     const handleNavigation = (path: string) => {
         navigate(path);

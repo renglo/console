@@ -1,25 +1,14 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { GlobalContext } from "@/components/console/global-context";
+import { lazyExtensionUi, resolveToolHandle } from "@/lib/extension-ui";
 
-const importNav = (tool: string) => {
-    // Use relative path from the current directory
-    return lazy(() => 
-      import(`@extensions/${tool}/ui/navigation/${tool}_sidenav.tsx`)
-          .catch((error) => {
-              console.log(`${tool} :E `, error);
-              // Return a simple component if import fails
-              return {
-                  default: () => null
-              };
-          })
-      );
-};
+const importNav = (tool: string) => lazyExtensionUi("sidenav", tool);
 
 interface SideNavProps {
-    portfolio: string;
-    org: string;
+    portfolio?: string;
+    org?: string;
     tool?: string;
     section?: string;
 }
@@ -37,13 +26,16 @@ export default function SideNav({portfolio, org, tool, section}: SideNavProps) {
     const navigate = useNavigate();
     const context = useContext(GlobalContext);
     
-    if (!context || !tool) {
+    if (!context || !tool || tool === "undefined") {
         return null;
     }
 
     const { tree } = context as unknown as { tree: { portfolios: Record<string, Portfolio> } };
-    const portfolioTools = tree?.portfolios?.[portfolio]?.tools || {};
-    const toolHandle = portfolioTools[tool]?.handle || tool;
+    const portfolioTools = (portfolio && tree?.portfolios?.[portfolio]?.tools) || {};
+    const toolHandle = resolveToolHandle(portfolioTools, tool);
+    if (!toolHandle) {
+        return null;
+    }
 
     const handleNavigation = (path: string) => {
         navigate(path);
