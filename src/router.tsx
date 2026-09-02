@@ -1,6 +1,7 @@
-import { lazy, Suspense, useContext } from 'react';
+import { Suspense, useContext } from 'react';
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GlobalContext } from "@/components/console/global-context";
+import { lazyExtensionUi, resolveToolHandle } from "@/lib/extension-ui";
 
 
 interface Portfolio {
@@ -24,18 +25,7 @@ interface Tool {
 
 
 
-// Import extension UI components dynamically
-const importTool = (tool: string) => {
-    return lazy(() => 
-        import(`@extensions/${tool}/ui/${tool}.tsx`)
-            .catch(() => {
-                // Return a simple component if import fails
-                return {
-                    default: () => null
-                };
-            })
-    );
-};
+const importTool = (tool: string) => lazyExtensionUi("tool", tool);
 
 export default function ToolRouter() {
 
@@ -64,7 +54,7 @@ export default function ToolRouter() {
     const tool_id = portfolioTools[tool]
         ? tool
         : Object.entries(portfolioTools).find(([_, toolData]) => toolData.handle === tool)?.[0];
-    const tool_handle = tool_id ? portfolioTools[tool_id]?.handle : undefined;
+    const tool_handle = resolveToolHandle(portfolioTools, tool);
 
     console.log('Router : Portfolio/Org/Tool/Section/p1/p2/p3/Query',portfolio,org,tool_id,section,p1,p2,p3,queryParams);
 

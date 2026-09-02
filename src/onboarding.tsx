@@ -1,18 +1,10 @@
-import { lazy, Suspense, useContext } from "react";
+import { Suspense, useContext } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GlobalContext } from "@/components/console/global-context";
+import { lazyExtensionUi, marketplaceHandles } from "@/lib/extension-ui";
 
-const importOnboarding = (plugin: string) => {
-  return lazy(() =>
-    import(`@extensions/${plugin}/ui/onboarding/${plugin}_onboarding.tsx`).catch(() => {
-      console.log(`${plugin} : Extension not found`);
-      return {
-        default: () => null,
-      };
-    })
-  );
-};
+const importOnboarding = (plugin: string) => lazyExtensionUi("onboarding", plugin);
 
 const FallbackCard = () => (
   <Card>
@@ -30,11 +22,7 @@ export default function Onboarding() {
   }
   const { tree } = context;
 
-  const bootstrapPluginsEnv = import.meta.env.VITE_EXTENSIONS || import.meta.env.VITE_BOOTSTRAP_PLUGINS || "";
-  const bootstrapPlugins = bootstrapPluginsEnv
-    .split(",")
-    .map((plugin: string) => plugin.trim())
-    .filter(Boolean);
+  const bootstrapPlugins = marketplaceHandles();
 
   const bootstrapComponents: React.ComponentType<{ tree: any }>[] = [];
   for (const bootstrapPlugin of bootstrapPlugins) {
@@ -48,7 +36,7 @@ export default function Onboarding() {
         <CardHeader>
           <CardTitle>No extensions configured</CardTitle>
           <CardDescription>
-            Add extension handles to <code>VITE_EXTENSIONS</code> to populate the marketplace.
+            Add an extension with the usual UI files. <code>VITE_EXTENSIONS</code> can filter the list.
           </CardDescription>
         </CardHeader>
       </Card>
