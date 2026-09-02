@@ -1,4 +1,4 @@
-/** Used when @stanley/wl is not installed yet. */
+/** Used when no tenant white-label pack is installed in node_modules. */
 export const smallLogo = "";
 export const largeLogo = "";
 export const background = "";
