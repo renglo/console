@@ -26,6 +26,9 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
+        // Extension UI is loaded from outside console/. Vite then serves
+        // recharts' CJS main (lib/index.js) and named exports like Bar fail.
+        recharts: fileURLToPath(new URL('./node_modules/recharts/es6/index.js', import.meta.url)),
         ...extensionAliases,
         ...wlAliases,
       },
@@ -33,6 +36,7 @@ export default defineConfig(({ mode }) => {
       preserveSymlinks: true,
       // Dedupe dependencies that are used by workspace packages
       dedupe: [
+        'react-router-dom',
         'react',
         'react-dom',
         'react-day-picker',
@@ -114,12 +118,13 @@ export default defineConfig(({ mode }) => {
         'react-syntax-highlighter',
         'react-syntax-highlighter/dist/esm/styles/prism',
         '@hello-pangea/dnd',
-      // Dynamically include extensions based on mode
-      ...(isDevMode ? ['../extensions/**/ui/**/*.tsx'] : []),
-    ],
-    // Exclude npm extension packages from optimization in production
-    exclude: isDevMode ? [] : ['@extensions/*'],
-    // Force include workspace dependencies
+        // Extension UI files live outside console/. Without this, Vite serves
+        // recharts' CJS build (lib/index.js) and named imports like Bar fail.
+        'recharts',
+      ],
+      // Exclude npm extension packages from optimization in production
+      exclude: isDevMode ? [] : ['@extensions/*'],
+
       entries: [
         './src/**/*.tsx',
         './src/**/*.ts',
@@ -130,7 +135,9 @@ export default defineConfig(({ mode }) => {
     commonjsOptions: {
       include: [
         /node_modules/,
-        ...(isDevMode ? [/\/extensions\//] : [/@extensions/]),
+        /\/extensions\//,
+        /@extensions/,
+        /@renglo\//,
       ],
     },
       rollupOptions: {

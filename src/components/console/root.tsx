@@ -175,10 +175,10 @@ export default function Root() {
         </nav>
         
         <SideNav
-            portfolio={`${portfolio}`} 
-            org={`${org}`} 
-            tool={`${tool}`} 
-            section={`${section}`} 
+            portfolio={portfolio}
+            org={org}
+            tool={tool}
+            section={section}
          />
 
         <nav 
@@ -213,10 +213,10 @@ export default function Root() {
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
           
           <SheetNav
-            portfolio={`${portfolio}`}
-            org={`${org}`}
-            tool={`${tool}`}
-            section={`${section}`}
+            portfolio={portfolio}
+            org={org}
+            tool={tool}
+            section={section}
           />
             
 
