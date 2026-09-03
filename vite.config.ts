@@ -42,6 +42,10 @@ export default defineConfig(({ mode }) => {
         'react-day-picker',
         'date-fns',
         'lucide-react',
+        // Extensions live outside console/, so node resolution from their files
+        // never reaches console/node_modules — dedupe pins them to this root.
+        'react-router-dom',
+        'pdfjs-dist',
         '@radix-ui/react-accordion',
         '@radix-ui/react-alert-dialog',
         '@radix-ui/react-aspect-ratio',
@@ -80,6 +84,7 @@ export default defineConfig(({ mode }) => {
         'recharts',
         'sonner',
         'vaul',
+        '@hello-pangea/dnd',
       ],
     },
     server: {
@@ -112,12 +117,14 @@ export default defineConfig(({ mode }) => {
         'date-fns',
         'react-syntax-highlighter',
         'react-syntax-highlighter/dist/esm/styles/prism',
+        '@hello-pangea/dnd',
         // Extension UI files live outside console/. Without this, Vite serves
         // recharts' CJS build (lib/index.js) and named imports like Bar fail.
         'recharts',
       ],
       // Exclude npm extension packages from optimization in production
       exclude: isDevMode ? [] : ['@extensions/*'],
+
       entries: [
         './src/**/*.tsx',
         './src/**/*.ts',
