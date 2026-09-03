@@ -6,8 +6,14 @@ module.exports = {
     './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
     './src/**/*.{ts,tsx}',
-	'../extensions/**/ui/**/*.{js,jsx,ts,tsx}',
-	'!../extensions/**/node_modules/**',
+    // Local git checkouts (dev / BOM clone path)
+    '../extensions/**/ui/**/*.{js,jsx,ts,tsx}',
+    '!../extensions/**/node_modules/**',
+    // Published extension packages (staging/prod Amplify build installs npm pins here)
+    './node_modules/@renglo/**/*.{js,jsx,ts,tsx}',
+    './node_modules/@stanley/**/*.{js,jsx,ts,tsx}',
+    '!./node_modules/@renglo/**/node_modules/**',
+    '!./node_modules/@stanley/**/node_modules/**',
   ],
   prefix: "",
   theme: {
