@@ -1,6 +1,6 @@
 name: Publish npm to publisher registry
 
-# Console CodeArtifact publish (optional — until enabled, stanley-bom uses repos.renglo/console).
+# Console CodeArtifact publish (optional — until enabled, tenant BOMs use repos.renglo/console).
 # Before the first successful publish:
 #   1. Set package.json name to "@renglo/console" (see ops/publisher/docs/package-registry-migration.md)
 #   2. Add "console" to ops/publisher/cdk/publisher-config.json github_publish_repos and redeploy

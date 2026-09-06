@@ -8,6 +8,7 @@ import {
   isExtensionUiRoot,
   isWlPackageName,
   listExtensionNames,
+  resolveExtensionHandle,
   viteImportSpecifier,
 } from "../renglo-extension-resolver.ts";
 
@@ -74,16 +75,37 @@ try {
     "export default function ShapeOnly() { return null }\n",
   );
 
+  fs.mkdirSync(path.join(nmRoot, "@acme", "lab", "navigation"), { recursive: true });
+  fs.writeFileSync(
+    path.join(nmRoot, "@acme", "lab", "package.json"),
+    JSON.stringify({ name: "@acme/lab", main: "./workbench.tsx" }),
+  );
+  fs.writeFileSync(
+    path.join(nmRoot, "@acme", "lab", "workbench.tsx"),
+    "export default function Workbench() { return null }\n",
+  );
+  fs.writeFileSync(
+    path.join(nmRoot, "@acme", "lab", "navigation", "workbench_sidenav.tsx"),
+    "export default function WorkbenchNav() { return null }\n",
+  );
+
   assert.equal(isExtensionUiRoot(path.join(nmRoot, "@acme", "casting"), "casting"), true);
+  assert.equal(
+    resolveExtensionHandle(path.join(nmRoot, "@acme", "lab"), "@acme/lab", "lab"),
+    "workbench",
+  );
   assert.equal(isExtensionUiRoot(path.join(nmRoot, "@acme", "wl"), "wl"), false);
   assert.equal(isExtensionUiRoot(path.join(nmRoot, "@renglo", "console"), "console"), false);
   assert.equal(isExtensionUiRoot(path.join(nmRoot, "@vendor", "tools-lib"), "tools-lib"), false);
 
   const discovered = listExtensionNames(extRoot, nmRoot);
-  assert.deepEqual(discovered, ["casting", "shapeonly"]);
+  assert.deepEqual(discovered, ["casting", "shapeonly", "workbench"]);
   const fakeCatalog = buildExtensionUiCatalog(extRoot, nmRoot);
   assert.ok(fakeCatalog.onboarding.casting?.endsWith("casting_onboarding.tsx"));
   assert.ok(fakeCatalog.onboarding.shapeonly?.endsWith("shapeonly_onboarding.tsx"));
+  assert.ok(fakeCatalog.tool.workbench?.endsWith("workbench.tsx"));
+  assert.ok(fakeCatalog.sidenav.workbench?.endsWith("workbench_sidenav.tsx"));
+  assert.equal(fakeCatalog.sidenav.lab, undefined);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

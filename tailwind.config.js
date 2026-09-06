@@ -9,11 +9,11 @@ module.exports = {
     // Local git checkouts (dev / BOM clone path)
     '../extensions/**/ui/**/*.{js,jsx,ts,tsx}',
     '!../extensions/**/node_modules/**',
-    // Published extension packages (staging/prod Amplify build installs npm pins here)
-    './node_modules/@renglo/**/*.{js,jsx,ts,tsx}',
-    './node_modules/@stanley/**/*.{js,jsx,ts,tsx}',
-    '!./node_modules/@renglo/**/node_modules/**',
-    '!./node_modules/@stanley/**/node_modules/**',
+    // Published extension packages (any publisher scope; skip nested deps)
+    './node_modules/@*/*.{js,jsx,ts,tsx}',
+    './node_modules/@*/*/**/*.{js,jsx,ts,tsx}',
+    '!./node_modules/@types/**',
+    '!./node_modules/@*/*/node_modules/**',
   ],
   prefix: "",
   theme: {

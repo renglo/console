@@ -43,13 +43,20 @@ export function resolveToolHandle(
   return match?.handle?.trim();
 }
 
-/** Marketplace handles: catalog (shape/kind), optionally filtered by VITE_EXTENSIONS. */
+/** Marketplace handles: catalog (shape/kind), optionally filtered by VITE_EXTENSIONS in dev. */
 export function marketplaceHandles(): string[] {
   const discovered = listExtensionHandles("onboarding");
   const allow = parseHandleList(
     import.meta.env.VITE_EXTENSIONS || import.meta.env.VITE_BOOTSTRAP_PLUGINS || "",
   );
   if (!allow.length) {
+    return discovered;
+  }
+  // CI sets VITE_EXTENSIONS from npm pin suffixes (lab) which may not match
+  // UI/API handles (arbitium). Production catalog is the install set.
+  const productionBuild =
+    import.meta.env.MODE === "production" || import.meta.env.VITE_DEV_MODE === "false";
+  if (productionBuild) {
     return discovered;
   }
   return allow.filter((handle) => discovered.includes(handle));

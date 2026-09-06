@@ -12,7 +12,7 @@ const mode = process.env.NODE_ENV || "development";
 const env = loadEnv(mode, __dirname, "");
 
 // Same idea as VITE_EXTENSIONS: name the pack, pick up the local tree.
-// @stanley/wl → ../dev/stanley-wl (workspace) or ../stanley-wl (BOM checkout).
+// @acme/wl → ../dev/acme-wl (workspace) or ../acme-wl (BOM checkout).
 const requested =
   process.env.VITE_WL_PACKAGE?.trim() ||
   env.VITE_WL_PACKAGE?.trim() ||

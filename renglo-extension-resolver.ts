@@ -63,6 +63,55 @@ export function handleFromPackageName(packageName: string, folder: string): stri
   return packageName || folder;
 }
 
+function handleFromMain(pkg: Record<string, unknown> | null): string | null {
+  const main = typeof pkg?.main === "string" ? pkg.main.trim() : "";
+  if (!main) {
+    return null;
+  }
+  const base = posixPath(main).split("/").pop()?.replace(/\.[^.]+$/, "") ?? "";
+  if (!base || base === "index") {
+    return null;
+  }
+  return base;
+}
+
+function scanUiHandles(uiRoot: string): string[] {
+  const handles: string[] = [];
+  const navDir = path.join(uiRoot, "navigation");
+  if (fs.existsSync(navDir)) {
+    for (const file of listFileNames(navDir)) {
+      const match = file.match(/^(.+)_sidenav\.[^.]+$/);
+      if (match?.[1]) {
+        handles.push(match[1]);
+      }
+    }
+  }
+  const onboardingDir = path.join(uiRoot, "onboarding");
+  if (fs.existsSync(onboardingDir)) {
+    for (const file of listFileNames(onboardingDir)) {
+      const match = file.match(/^(.+)_onboarding\.[^.]+$/);
+      if (match?.[1]) {
+        handles.push(match[1]);
+      }
+    }
+  }
+  return handles;
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+    seen.add(trimmed);
+    result.push(trimmed);
+  }
+  return result;
+}
+
 function resolveExistingFile(basePath: string): string | null {
   for (const suffix of SOURCE_EXTENSIONS) {
     const candidate = `${basePath}${suffix}`;
@@ -77,6 +126,35 @@ function hasUiShape(uiRoot: string, handle: string): boolean {
   return EXTENSION_UI_KINDS.some((kind) =>
     resolveExistingFile(path.join(uiRoot, KIND_SUBPATH[kind](handle))),
   );
+}
+
+/**
+ * UI handle for an extension root.
+ *
+ * npm names like @arbitium/lab do not always match the files or the API
+ * handle (arbitium.tsx / handle "arbitium"). Prefer package.json "main",
+ * then names that actually have onboarding/sidenav/tool files.
+ */
+export function resolveExtensionHandle(
+  uiRoot: string,
+  packageName: string,
+  folder: string,
+): string | null {
+  if (!fs.existsSync(uiRoot)) {
+    return null;
+  }
+  const pkg = readPackageJson(uiRoot);
+  const name = typeof pkg?.name === "string" ? pkg.name : packageName;
+  if (name === "@renglo/console" || isWlPackageName(name)) {
+    return null;
+  }
+  const candidates = uniqueStrings([
+    handleFromMain(pkg),
+    handleFromPackageName(name, folder),
+    folder,
+    ...scanUiHandles(uiRoot),
+  ]);
+  return candidates.find((handle) => hasUiShape(uiRoot, handle)) ?? null;
 }
 
 export function isExtensionUiRoot(uiRoot: string, handle: string): boolean {
@@ -100,6 +178,15 @@ function listDirNames(dir: string): string[] {
     .map((entry) => entry.name);
 }
 
+function listFileNames(dir: string): string[] {
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name);
+}
+
 function addRoot(roots: Map<string, string[]>, handle: string, uiRoot: string): void {
   const normalized = posixPath(path.resolve(uiRoot));
   const existing = roots.get(handle) ?? [];
@@ -120,8 +207,8 @@ export function discoverExtensionUiRoots(
     const uiRoot = path.join(extensionsRoot, folder, "ui");
     const pkg = readPackageJson(uiRoot);
     const packageName = typeof pkg?.name === "string" ? pkg.name : folder;
-    const handle = handleFromPackageName(packageName, folder);
-    if (isExtensionUiRoot(uiRoot, handle)) {
+    const handle = resolveExtensionHandle(uiRoot, packageName, folder);
+    if (handle) {
       addRoot(roots, handle, uiRoot);
     }
   }
@@ -135,8 +222,8 @@ export function discoverExtensionUiRoots(
       const uiRoot = path.join(scopeDir, pkgName);
       const pkg = readPackageJson(uiRoot);
       const packageName = typeof pkg?.name === "string" ? pkg.name : `${scope}/${pkgName}`;
-      const handle = handleFromPackageName(packageName, pkgName);
-      if (isExtensionUiRoot(uiRoot, handle)) {
+      const handle = resolveExtensionHandle(uiRoot, packageName, pkgName);
+      if (handle) {
         addRoot(roots, handle, uiRoot);
       }
     }
@@ -261,13 +348,13 @@ function isExtensionImporter(
   }
   const pkgDir = path.join(nodeModulesRoot, ...match[1].split("/"));
   const handle = match[1].split("/")[1];
-  return isExtensionUiRoot(pkgDir, handle);
+  return resolveExtensionHandle(pkgDir, match[1], handle) !== null;
 }
 
 /**
  * Resolve cross-extension UI imports:
  *   @renglo/data/pages/tool_data_crud
- *   @stanley/casting/pages/board
+ *   @publisher/handle/pages/board
  *   @extensions/data/ui/pages/chat_inspect
  *
  * A package is an extension when it has the host UI shape
@@ -308,10 +395,17 @@ export function rengloExtensionResolver(): Plugin {
 
       const scopedMatch = source.match(SCOPED_PACKAGE_SUBPATH);
       if (scopedMatch && scopedMatch[1] !== "extensions") {
-        const [, scope, handle, subpath] = scopedMatch;
-        const pkgDir = path.join(nodeModulesRoot, `@${scope}`, handle);
-        if (isExtensionUiRoot(pkgDir, handle) || isExtensionUiRoot(path.join(extensionsRoot, handle, "ui"), handle)) {
-          return resolveExtensionUiFile(extensionsRoot, nodeModulesRoot, handle, subpath);
+        const [, scope, pkgHandle, subpath] = scopedMatch;
+        const pkgDir = path.join(nodeModulesRoot, `@${scope}`, pkgHandle);
+        const resolvedHandle =
+          resolveExtensionHandle(pkgDir, `@${scope}/${pkgHandle}`, pkgHandle) ||
+          resolveExtensionHandle(
+            path.join(extensionsRoot, pkgHandle, "ui"),
+            `@${scope}/${pkgHandle}`,
+            pkgHandle,
+          );
+        if (resolvedHandle) {
+          return resolveExtensionUiFile(extensionsRoot, nodeModulesRoot, resolvedHandle, subpath);
         }
       }
 
