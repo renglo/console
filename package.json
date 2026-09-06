@@ -2,7 +2,7 @@
   "name": "@renglo/console",
   "homepage": ".",
   "private": false,
-  "version": "0.0.5-rc.2",
+  "version": "0.0.6-rc.1",
   "license": "MIT",
   "type": "module",
   "scripts": {
