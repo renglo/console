@@ -39,13 +39,7 @@ npm run install
 
 NOTE: In production environments, the extension dependencies will be installed automatically.
 
-3. List the name of the extension in the console config file (.env.*)
-
-Add the name of the extension to the comma separated string 
-
-``` 
-VITE_EXTENSIONS=schd,data,<extension_name>
-```
+Clone the extension into `extensions/`. Console discovers every `extensions/*/ui` pack (and npm-pinned UI packages) automatically. Restart Vite after adding a folder.
 
 ## License
 

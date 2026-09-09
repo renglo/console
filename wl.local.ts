@@ -11,7 +11,7 @@ const fallback = fileURLToPath(new URL("./src/lib/wl-fallback.ts", import.meta.u
 const mode = process.env.NODE_ENV || "development";
 const env = loadEnv(mode, __dirname, "");
 
-// Same idea as VITE_EXTENSIONS: name the pack, pick up the local tree.
+// Name the pack, pick up the local tree.
 // @acme/wl → ../dev/acme-wl (workspace) or ../acme-wl (BOM checkout).
 const requested =
   process.env.VITE_WL_PACKAGE?.trim() ||

@@ -36,7 +36,7 @@ export default function Onboarding() {
         <CardHeader>
           <CardTitle>No extensions configured</CardTitle>
           <CardDescription>
-            Add an extension with the usual UI files. <code>VITE_EXTENSIONS</code> can filter the list.
+            Add an extension with the usual UI files (onboarding, sidenav, tool).
           </CardDescription>
         </CardHeader>
       </Card>

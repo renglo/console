@@ -49,11 +49,9 @@ npm install
 ```bash
 VITE_API_URL='http://127.0.0.1:5001'
 VITE_DEV_MODE=true
-VITE_EXTENSIONS=data,schd,extension_x
-
 ```
 
-The `VITE_EXTENSIONS` variable defines which extensions to load on startup (comma-separated list). Your extension should be listed in that variable
+Console discovers every `extensions/*/ui` pack (and npm-pinned UI packages). You do not list them in env.
 
 ### Step 5: Start Environment
 
@@ -135,9 +133,8 @@ export default function MyNewToolSideNav({
 }
 EOF
 
-# 5. Add to bootstrap extensions (optional, only if you want it to load on startup)
+# 5. Restart Vite — console discovers the new folder automatically
 cd ../../console
-# Edit .env.development and add extension to VITE_EXTENSIONS: "schd,enerclave,my-new-tool"
 
 # 6. Install (workspace auto-discovers)
 npm install
@@ -157,9 +154,8 @@ git clone https://github.com/your-org/some-extension.git
 cd some-extension
 # If no package.json, create one (see structure below)
 
-# 3. Add to bootstrap extensions (optional)
+# 3. Restart Vite — console discovers the clone automatically
 cd ../../console
-# Edit .env.development and add extension to VITE_EXTENSIONS if needed
 
 # 4. Install
 npm install
@@ -174,9 +170,6 @@ cd console
 
 # Install published extension
 npm install @extensions/some-extension@1.0.0
-
-# Add to bootstrap extensions (optional)
-# Edit .env.production and add extension to VITE_EXTENSIONS if needed
 
 # Set production mode
 echo "VITE_DEV_MODE=false" > .env.local

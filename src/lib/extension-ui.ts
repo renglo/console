@@ -9,13 +9,6 @@ const Empty = () => null;
 
 const cache = new Map<string, LazyExoticComponent<ComponentType<any>>>();
 
-function parseHandleList(raw: string): string[] {
-  return raw
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
-
 function unwrapDefault(mod: { default?: ComponentType<any> } | ComponentType<any>) {
   let current: any = mod;
   while (current && typeof current === "object" && "default" in current) {
@@ -43,23 +36,9 @@ export function resolveToolHandle(
   return match?.handle?.trim();
 }
 
-/** Marketplace handles: catalog (shape/kind), optionally filtered by VITE_EXTENSIONS in dev. */
+/** Marketplace cards: every discovered onboarding UI. */
 export function marketplaceHandles(): string[] {
-  const discovered = listExtensionHandles("onboarding");
-  const allow = parseHandleList(
-    import.meta.env.VITE_EXTENSIONS || import.meta.env.VITE_BOOTSTRAP_PLUGINS || "",
-  );
-  if (!allow.length) {
-    return discovered;
-  }
-  // CI sets VITE_EXTENSIONS from npm pin suffixes (lab) which may not match
-  // UI/API handles (arbitium). Production catalog is the install set.
-  const productionBuild =
-    import.meta.env.MODE === "production" || import.meta.env.VITE_DEV_MODE === "false";
-  if (productionBuild) {
-    return discovered;
-  }
-  return allow.filter((handle) => discovered.includes(handle));
+  return listExtensionHandles("onboarding");
 }
 
 export function lazyExtensionUi(
