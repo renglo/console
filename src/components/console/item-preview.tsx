@@ -4,6 +4,8 @@ import {
     Lock,
     MoreVertical,
     RefreshCw,
+    Pyramid,
+    Search,
 } from "lucide-react"
   
 
@@ -47,6 +49,12 @@ import {
   parseBlueprintSourceSpec,
   resolveDocumentTitle,
 } from "@/lib/console_utils"
+import {
+  fieldGraphRole,
+  fieldIsEmbedded,
+  fieldIsSearchable,
+  positiveLevel,
+} from "@/lib/blueprint-spec"
 
 
 interface ItemPreviewProps { 
@@ -74,6 +82,9 @@ interface FieldDictionary {
     cardinality?: string;
     type?: string;
     source?: unknown;
+    embed?: unknown;
+    search?: unknown;
+    literal_edge?: unknown;
   };
 }
 
@@ -86,12 +97,66 @@ interface BlueprintField {
   type?: string;
   source?: unknown;
   edges?: [string, string];
+  embed?: unknown;
+  search?: unknown;
+  literal_edge?: unknown;
 }
 
 interface EdgeDefinition {
   edgeType: string;
   outgoingAlias?: string;
   incomingAlias?: string;
+}
+
+function stringifyEmbedValue(raw: unknown): string[] {
+  if (raw == null) return [];
+  if (typeof raw === "boolean") return [String(raw).toLowerCase()];
+  if (typeof raw === "number") return [String(raw)];
+  if (typeof raw === "string") {
+    const text = raw.trim();
+    return text ? [text] : [];
+  }
+  if (Array.isArray(raw)) {
+    const values: string[] = [];
+    for (const item of raw) {
+      for (const part of stringifyEmbedValue(item)) {
+        if (!values.includes(part)) values.push(part);
+      }
+    }
+    return values;
+  }
+  if (typeof raw === "object" && raw && "value" in raw) {
+    return stringifyEmbedValue((raw as { value?: unknown }).value);
+  }
+  const text = String(raw).trim();
+  return text ? [text] : [];
+}
+
+function buildLiveFingerprint(
+  fieldsDictionary: FieldDictionary,
+  data: DataType,
+  blueprint: unknown,
+): { text: string; fields: string[] } {
+  const used: string[] = [];
+  const parts: string[] = [];
+  for (const [name, field] of Object.entries(fieldsDictionary)) {
+    if (!fieldIsEmbedded(field, blueprint)) continue;
+    const values = stringifyEmbedValue(data[name] ?? data?.attributes?.[name]);
+    if (values.length === 0) continue;
+    parts.push(`[${name}=${values.join(",")}]`);
+    used.push(name);
+  }
+  return { text: parts.join(" "), fields: used };
+}
+
+function previewEmbedding(vector: unknown, limit = 8): string {
+  if (!Array.isArray(vector) || vector.length === 0) return "—";
+  const head = vector.slice(0, limit).map((n) => {
+    const num = Number(n);
+    return Number.isFinite(num) ? num.toFixed(4) : String(n);
+  });
+  const suffix = vector.length > limit ? `, … +${vector.length - limit}` : "";
+  return `[${head.join(", ")}${suffix}]`;
 }
 
 function toUpperSnake(raw: string): string {
@@ -120,6 +185,11 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
     const [graphError, setGraphError] = useState("");
     const [graphResponse, setGraphResponse] = useState<any>(null);
     const [inferredEdgeDefinitions, setInferredEdgeDefinitions] = useState<EdgeDefinition[]>([]);
+    const [vectorDialogOpen, setVectorDialogOpen] = useState(false);
+    const [vectorLoading, setVectorLoading] = useState(false);
+    const [vectorError, setVectorError] = useState("");
+    const [vectorResponse, setVectorResponse] = useState<any>(null);
+    const [showFullEmbedding, setShowFullEmbedding] = useState(false);
 
     const indexPathFields = useMemo(
         () => getBlueprintIndexPathFieldSet(blueprint),
@@ -131,10 +201,25 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
       [graphResponse, ring, selectedId],
     );
 
+    const liveFingerprint = useMemo(
+      () => buildLiveFingerprint(fieldsDictionary, data, blueprint),
+      [fieldsDictionary, data, blueprint],
+    );
+
+    const embedFieldNames = useMemo(
+      () =>
+        Object.entries(fieldsDictionary)
+          .filter(([, field]) => fieldIsEmbedded(field, blueprint))
+          .map(([name]) => name),
+      [fieldsDictionary, blueprint],
+    );
+
     useEffect(() => {
         if (!selectedId) {
             setData({});
             setShowCard(false);
+            setVectorResponse(null);
+            setVectorError("");
             return;
         }
 
@@ -498,8 +583,35 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
         setGraphResponse(body);
       } catch (err) {
         setGraphError(err instanceof Error ? err.message : "Unknown graph query error");
-      } finally {
+      }         finally {
         setGraphLoading(false);
+      }
+    };
+
+    const runVectorLookup = async () => {
+      if (!selectedId) return;
+      setVectorLoading(true);
+      setVectorError("");
+      setVectorResponse(null);
+      setShowFullEmbedding(false);
+      try {
+        const url = `${import.meta.env.VITE_API_URL}/_vector/${portfolio}/${org}/${encodeURIComponent(ring)}/${encodeURIComponent(selectedId)}`;
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${sessionStorage.accessToken}`,
+          },
+        });
+        const text = await response.text();
+        const body = text ? JSON.parse(text) : {};
+        if (!response.ok) {
+          throw new Error(body?.error || body?.message || `Vector lookup failed (${response.status})`);
+        }
+        setVectorResponse(body);
+      } catch (err) {
+        setVectorError(err instanceof Error ? err.message : "Unknown vector lookup error");
+      } finally {
+        setVectorLoading(false);
       }
     };
 
@@ -545,8 +657,8 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
       <Card
         className="flex min-h-0 flex-1 flex-col"
       > 
-        <CardHeader className="flex flex-row items-start gap-3 bg-muted/50">
-          <div className="min-w-0 flex-1 grid gap-0.5">
+        <CardHeader className="flex flex-col gap-3 space-y-0 bg-muted/50">
+          <div className="grid min-w-0 w-full gap-0.5">
             <CardTitle className="group flex min-w-0 items-center gap-2 text-lg">
             {(!selectedId || !showCard) ? (
               <span>All</span>
@@ -574,13 +686,14 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
               id: {data._id}
             </CardDescription>
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-1">
+          <div className="flex items-start gap-1">
+            <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
             <Dialog open={graphDialogOpen} onOpenChange={setGraphDialogOpen}>
               <DialogTrigger asChild>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8"
+                  className="h-8 flex-1"
                   disabled={!selectedId || !showCard}
                   onClick={() => {
                     void runGraphEdgeQuery();
@@ -654,6 +767,133 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
                 </Tabs>
               </DialogContent>
             </Dialog>
+            <Dialog open={vectorDialogOpen} onOpenChange={setVectorDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 flex-1"
+                  disabled={!selectedId || !showCard}
+                  onClick={() => {
+                    void runVectorLookup();
+                  }}
+                >
+                  <Pyramid className="mr-1.5 h-3.5 w-3.5" />
+                  Vector
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="flex max-h-[90vh] w-full max-w-5xl flex-col gap-3 overflow-hidden">
+                <DialogHeader className="shrink-0">
+                  <DialogTitle>Vector for current item</DialogTitle>
+                  <DialogDescription>
+                    Key: <code>{ring}/{selectedId || "N/A"}</code>
+                    {embedFieldNames.length > 0
+                      ? ` · blueprint embeds ${embedFieldNames.join(", ")}`
+                      : " · this blueprint has no embed fields"}
+                  </DialogDescription>
+                </DialogHeader>
+                {vectorError ? (
+                  <div className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    {vectorError}
+                  </div>
+                ) : null}
+                <Tabs defaultValue="vector" className="min-h-0 flex-1">
+                  <TabsList className="mb-2 w-fit shrink-0">
+                    <TabsTrigger value="vector">Stored vector</TabsTrigger>
+                    <TabsTrigger value="document">Live document</TabsTrigger>
+                    <TabsTrigger value="raw-json">Raw JSON</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="vector" className="min-h-0 flex-1 overflow-hidden mt-0 data-[state=inactive]:hidden">
+                    <div className="max-h-[65vh] overflow-y-auto rounded-md border bg-muted/20 p-3 text-sm space-y-3">
+                      {vectorLoading ? (
+                        <div className="text-muted-foreground">Loading vector…</div>
+                      ) : vectorResponse == null ? (
+                        <div className="text-muted-foreground">No vector lookup run yet.</div>
+                      ) : vectorResponse.found === false ? (
+                        <div className="text-muted-foreground">
+                          No vector is stored for this document yet. Blueprint CRUD embedding
+                          writes on save; existing documents are not backfilled until they are
+                          PUT again.
+                        </div>
+                      ) : (
+                        <>
+                          <div className="grid gap-1 text-xs">
+                            <div><span className="font-medium">Index:</span> {String(vectorResponse.index || "—")}</div>
+                            <div><span className="font-medium">Updated:</span> {String(vectorResponse.updated_at || "—")}</div>
+                            <div><span className="font-medium">Model:</span> {String(vectorResponse.model || "—")}</div>
+                            <div><span className="font-medium">Dim:</span> {String(vectorResponse.dim ?? (Array.isArray(vectorResponse.vector) ? vectorResponse.vector.length : "—"))}</div>
+                            <div>
+                              <span className="font-medium">Stored fields:</span>{" "}
+                              {Array.isArray(vectorResponse.attrs?.fields)
+                                ? vectorResponse.attrs.fields.join(", ")
+                                : "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium text-xs mb-1">Embedding</div>
+                            <pre className="whitespace-pre-wrap break-all rounded-md border bg-background/60 p-2 font-mono text-xs leading-relaxed">
+                              {showFullEmbedding
+                                ? JSON.stringify(vectorResponse.vector ?? [], null, 2)
+                                : previewEmbedding(vectorResponse.vector)}
+                            </pre>
+                            {Array.isArray(vectorResponse.vector) && vectorResponse.vector.length > 8 ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="mt-1 h-7 px-2 text-xs"
+                                onClick={() => setShowFullEmbedding((prev) => !prev)}
+                              >
+                                {showFullEmbedding ? "Hide full vector" : "Show full vector"}
+                              </Button>
+                            ) : null}
+                          </div>
+                          <div>
+                            <div className="font-medium text-xs mb-1">Live fingerprint (from current document)</div>
+                            <p className="mb-1 text-xs text-muted-foreground">
+                              Fingerprint text is not stored in the Vector DB. This is rebuilt from
+                              the live document and current embed fields.
+                            </p>
+                            <pre className="whitespace-pre-wrap break-words rounded-md border bg-background/60 p-2 font-mono text-xs leading-relaxed">
+                              {liveFingerprint.text || "—"}
+                            </pre>
+                          </div>
+                          <div>
+                            <div className="font-medium text-xs mb-1">Stored attrs</div>
+                            <pre className="whitespace-pre-wrap break-words rounded-md border bg-background/60 p-2 font-mono text-xs leading-relaxed">
+                              {JSON.stringify(vectorResponse.attrs || {}, null, 2)}
+                            </pre>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="document" className="min-h-0 flex-1 overflow-hidden mt-0 data-[state=inactive]:hidden">
+                    <div className="max-h-[65vh] overflow-y-auto rounded-md border bg-muted/20 p-3">
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        Live Dynamo document. The Vector DB stores only the embedding and
+                        metadata, not this JSON.
+                      </p>
+                      <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+                        {JSON.stringify(data, null, 2)}
+                      </pre>
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="raw-json" className="min-h-0 flex-1 overflow-hidden mt-0 data-[state=inactive]:hidden">
+                    <div className="max-h-[65vh] overflow-y-auto rounded-md border bg-muted/20 p-3">
+                      <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+                        {vectorLoading
+                          ? "Loading vector..."
+                          : vectorResponse !== null
+                            ? JSON.stringify(vectorResponse, null, 2)
+                            : "No vector lookup run yet."}
+                      </pre>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </DialogContent>
+            </Dialog>
+            </div>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -697,6 +937,11 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
                       {Object.entries(fieldsDictionary).map(([key, fieldInfo]) => {
                           const value = data[key] ?? data?.attributes?.[key];
                           const isIndexKey = indexPathFields.has(key);
+                          const isEmbedded = fieldIsEmbedded(fieldInfo, blueprint);
+                          const embedWeight = positiveLevel(fieldInfo?.embed, { allowBoolean: true });
+                          const isSearchable = fieldIsSearchable(fieldInfo, blueprint);
+                          const searchWeight = positiveLevel(fieldInfo?.search);
+                          const graphRole = fieldGraphRole(fieldInfo);
                           return !key.startsWith('_') ? (
                               <li
                                   key={key}
@@ -707,11 +952,59 @@ export default function ItemPreview({selectedId,refreshUp,onDeleteId,blueprint,p
                                   <div className="flex min-w-0 items-center justify-between gap-2 sm:min-h-8 sm:pt-0.5">
                                     <span
                                       className={cn(
-                                        "min-w-0 flex-1 text-sm font-medium leading-snug text-muted-foreground",
+                                        "min-w-0 flex-1 text-sm font-medium leading-snug text-muted-foreground inline-flex items-center gap-1.5",
                                         isIndexKey && "text-muted-foreground/80",
                                       )}
                                     >
-                                      {fieldInfo?.label}
+                                      <span className="min-w-0">{fieldInfo?.label}</span>
+                                      <span className="inline-flex shrink-0 items-center gap-1">
+                                      {isSearchable ? (
+                                        <span
+                                          className="inline-flex h-5 items-center text-amber-600 dark:text-amber-400"
+                                          title={
+                                            searchWeight > 0
+                                              ? `Indexed by search (weight ${searchWeight}).`
+                                              : "Indexed by search."
+                                          }
+                                        >
+                                          <Search className="h-3.5 w-3.5 opacity-80" aria-hidden />
+                                          <span className="sr-only">Indexed by search</span>
+                                        </span>
+                                      ) : null}
+                                      {graphRole ? (
+                                        <span
+                                          className="inline-flex h-5 items-center text-sky-600 dark:text-sky-400"
+                                          title={
+                                            graphRole === "reference"
+                                              ? "Creates a graph reference edge."
+                                              : "Creates a literal graph edge."
+                                          }
+                                        >
+                                          <GitBranch className="h-3.5 w-3.5 opacity-80" aria-hidden />
+                                          <span className="sr-only">
+                                            {graphRole === "reference" ? "Graph reference" : "Literal graph edge"}
+                                          </span>
+                                        </span>
+                                      ) : null}
+                                      {isEmbedded ? (
+                                        <span
+                                          className="inline-flex h-5 items-center gap-0.5 text-violet-600 dark:text-violet-400"
+                                          title={
+                                            embedWeight > 1
+                                              ? `Included in the Vector DB fingerprint (weight ${embedWeight}).`
+                                              : "Included in the Vector DB fingerprint."
+                                          }
+                                        >
+                                          <Pyramid className="h-3.5 w-3.5 opacity-80" aria-hidden />
+                                          {embedWeight > 1 ? (
+                                            <span className="text-[0.65rem] font-semibold leading-none">
+                                              ×{embedWeight}
+                                            </span>
+                                          ) : null}
+                                          <span className="sr-only">Embedded in Vector DB</span>
+                                        </span>
+                                      ) : null}
+                                      </span>
                                     </span>
                                     {isIndexKey ? (
                                       <span
