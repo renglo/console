@@ -8,6 +8,15 @@ import {
 
 export { captions, locales };
 
+/** Subject line shown in the invite email, for the /invite form hint. */
+export function inviteEmailSubjectHint(): string {
+  const invite = locales.en.email?.invite;
+  const template = invite?.subjectHint || invite?.subject || "";
+  return template
+    .replaceAll("{appName}", locales.en.appName || "this system")
+    .replaceAll("{team}", "a team");
+}
+
 /** Header / menu logo. */
 export function wlLogoUrl(): string {
   return smallLogo;
