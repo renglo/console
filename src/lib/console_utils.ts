@@ -18,6 +18,9 @@ interface Field {
     required: boolean;
     semantic: string;
     source?: unknown;
+    search?: unknown;
+    embed?: unknown;
+    literal_edge?: unknown;
   }
 
 export interface BlueprintSourceSpec {

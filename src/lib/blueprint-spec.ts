@@ -90,15 +90,15 @@ export function summarizeBlueprint(blueprint: Blueprint | null | undefined): Blu
 
   for (const field of blueprint.fields) {
     if (!field || typeof field !== "object") continue
-    const row = field as Record<string, unknown>
-    if (row.required === true || String(row.required).toLowerCase() === "true") {
+    const required = (field as { required?: unknown }).required
+    if (required === true || String(required).toLowerCase() === "true") {
       requiredCount += 1
     }
-    if (fieldIsSearchable(row, blueprint)) searchFieldCount += 1
-    const graph = fieldGraphRole(row)
+    if (fieldIsSearchable(field, blueprint)) searchFieldCount += 1
+    const graph = fieldGraphRole(field)
     if (graph === "reference") referenceCount += 1
     if (graph === "literal") literalEdgeCount += 1
-    if (fieldIsEmbedded(row, blueprint)) embedFieldCount += 1
+    if (fieldIsEmbedded(field, blueprint)) embedFieldCount += 1
   }
 
   const indexParts = Array.isArray(blueprint.indexes?.path)

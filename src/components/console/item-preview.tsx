@@ -45,6 +45,7 @@ import { fileNameFromUri, storedFileHref } from "@/lib/image-upload"
 import RadialGraph from "@/components/console/radial-graph"
 import { buildNodeEdgesRadialGraphModel } from "@/components/console/radial-graph-models"
 import {
+  type Blueprint,
   getBlueprintIndexPathFieldSet,
   parseBlueprintSourceSpec,
   resolveDocumentTitle,
@@ -135,7 +136,7 @@ function stringifyEmbedValue(raw: unknown): string[] {
 function buildLiveFingerprint(
   fieldsDictionary: FieldDictionary,
   data: DataType,
-  blueprint: unknown,
+  blueprint: Blueprint | null | undefined,
 ): { text: string; fields: string[] } {
   const used: string[] = [];
   const parts: string[] = [];
