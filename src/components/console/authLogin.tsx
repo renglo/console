@@ -7,23 +7,22 @@ import { captions, wlBackgroundUrl } from '@/lib/branding';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 
 export default function AuthLogin() {
 
     const location = useLocation();
+    const navigate = useNavigate();
     const queryParams = new URLSearchParams(location.search);
     
     const [email, setEmail] = useState(queryParams.get('email') ?? '');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [showAdminSetupLink, setShowAdminSetupLink] = useState(false);
 
     const handleSignIn = async (e: { preventDefault: () => void; }) => {
         e.preventDefault();
         setError('');
-        setShowAdminSetupLink(false);
         try {
           if (!email || !password) {
             throw new Error("Email and password must be provided");
@@ -32,12 +31,9 @@ export default function AuthLogin() {
           const result = await signIn(email, password);
 
           if (result.kind === 'new_password_required') {
-            // Only bootstrap admins (Cognito temp password email) should hit this.
-            // Team invitees set a permanent password at accept and must not be sent here.
-            setError(
-              'This account still needs admin setup. Use the temporary password from your Cognito invitation email on the admin setup page, or ask an operator to recreate the account if you joined via a team invite.',
-            );
-            setShowAdminSetupLink(true);
+            navigate(`/invite?setup=admin&email=${encodeURIComponent(email)}`, {
+              state: { tempPassword: password },
+            });
             return;
           }
 
@@ -101,14 +97,6 @@ export default function AuthLogin() {
                       {error && (
                         <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                           <p>{error}</p>
-                          {showAdminSetupLink && (
-                            <a
-                              href={`/invite?setup=admin&email=${encodeURIComponent(email)}`}
-                              className="mt-2 inline-block underline"
-                            >
-                              Continue admin account setup
-                            </a>
-                          )}
                         </div>
                       )}
                       <Button type="submit" className="w-full">

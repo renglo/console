@@ -21,7 +21,7 @@ import { useLocation } from 'react-router-dom';
 import { useState, FormEvent, useMemo } from 'react';
 import { completeNewPasswordChallenge, signIn } from './authService';
 import { finishAuthenticatedSession } from './authSession';
-import { wlLogoUrl } from '@/lib/branding';
+import { inviteEmailSubjectHint, locales, wlLogoUrl } from '@/lib/branding';
 
 
 export default function AuthInvite() {
@@ -30,13 +30,20 @@ export default function AuthInvite() {
     () => new URLSearchParams(location.search),
     [location.search],
   );
-  const isAdminSetup = queryParams.get('setup') === 'admin';
+  const isPasswordSetup = queryParams.get('setup') === 'admin';
+  const loginTempPassword =
+    typeof location.state === 'object' &&
+    location.state !== null &&
+    'tempPassword' in location.state &&
+    typeof (location.state as { tempPassword?: unknown }).tempPassword === 'string'
+      ? (location.state as { tempPassword: string }).tempPassword
+      : '';
 
   const [email, setEmail] = useState(queryParams.get('email') ?? '');
   const [code, setCode] = useState(queryParams.get('code') ?? '');
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
-  const [tempPassword, setTempPassword] = useState('');
+  const [tempPassword, setTempPassword] = useState(loginTempPassword);
   const [pass, setPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
 
@@ -106,7 +113,7 @@ export default function AuthInvite() {
       const signInResult = await signIn(email, tempPassword);
 
       if (signInResult.kind !== 'new_password_required') {
-        setWarning('This account is already set up. Sign in at /login instead.');
+        setWarning('This account is already set up. Sign in instead.');
         return;
       }
 
@@ -160,14 +167,14 @@ export default function AuthInvite() {
       <CardHeader>
         <CardTitle className="text-xl">
             <div className="flex mb-6">
-            {isAdminSetup ? 'Set up your admin account' : 'Access your new team'}
-            <img src={wlLogoUrl()} className="w-[40px] ml-auto" alt="Logo" />
+            {isPasswordSetup ? 'Set up your account' : 'Access your new team'}
+            <img src={wlLogoUrl()} className="w-[40px] ml-auto" alt={locales.en.appName || "Logo"} />
             </div>
         </CardTitle>
         <CardDescription>
-          {isAdminSetup ? (
+          {isPasswordSetup ? (
             <>
-              Enter the temporary password from your Cognito email, your name, and a new password.
+              Enter the temporary password from your invitation email, your name, and a new password.
               <div className="text-xs mt-1">
                 Copy the temporary password exactly — do not include the period at the end of the sentence.
               </div>
@@ -175,13 +182,13 @@ export default function AuthInvite() {
           ) : (
             <>
               Enter the invitation code we sent to your email
-              <div className="text-xs">(The message has the subject: &quot;You have been invited to a new team&quot;)</div>
+              <div className="text-xs">(The message has the subject: &quot;{inviteEmailSubjectHint()}&quot;)</div>
             </>
           )}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isAdminSetup ? (
+        {isPasswordSetup ? (
           <form onSubmit={handleAdminSetupSubmit}>
             <div className="grid gap-4">
               <div className="grid gap-2">
@@ -203,7 +210,7 @@ export default function AuthInvite() {
                   type="password"
                   value={tempPassword}
                   onChange={(e) => setTempPassword(e.target.value)}
-                  placeholder="From your Cognito email"
+                  placeholder="From your invitation email"
                   required
                 />
               </div>

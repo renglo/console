@@ -52,12 +52,7 @@ const ForgotPassword = () => {
     } catch (error) {
       console.error('Error sending password reset code:', error);
       if (isPasswordChallengeResetError(error)) {
-        setStatus(
-          'Password reset is not available until you complete the required password change.',
-        );
-        alert(
-          "Your account still requires a one-time password change (Cognito challenge). Continue on the setup page with the temporary password from your invitation email.",
-        );
+        setStatus('Continue with the temporary password from your invitation email.');
         navigate(`/invite?setup=admin&email=${encodeURIComponent(email)}`);
         return;
       }
