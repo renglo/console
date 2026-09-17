@@ -132,7 +132,7 @@ function hasUiShape(uiRoot: string, handle: string): boolean {
  * UI handle for an extension root.
  *
  * npm names like @arbitium/lab do not always match the files or the API
- * handle (arbitium.tsx / handle "arbitium"). Prefer package.json "main",
+ * handle (arbitiumlab.tsx / handle "arbitiumlab"). Prefer package.json "main",
  * then names that actually have onboarding/sidenav/tool files.
  */
 export function resolveExtensionHandle(
