@@ -39,8 +39,8 @@ function readPackageName(uiRoot: string): string {
 
 /**
  * Local checkout wins when the tree exists (dev + hybrid CI).
- * Alias both the folder name (@renglo/arbitiumlab) and the UI handle
- * (@renglo/arbitium). Production with npm pins leaves unknown specifiers
+ * Alias both the folder name (@renglo/arbitiumlab) and the resolved UI handle
+ * when they differ. Production with npm pins leaves unknown specifiers
  * unresolved so Vite uses node_modules.
  */
 const dynamicAliases: Record<string, string> = {};
