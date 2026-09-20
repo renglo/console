@@ -4,6 +4,7 @@ import { WindowSizeProvider } from '@/contexts/WindowSizeContext';
 import { useContext } from 'react';
 import { GlobalContext } from "@/components/console/global-context";
 import { lazyExtensionUi, resolveToolHandle } from "@/lib/extension-ui";
+import { portfolioCatalog } from "@/lib/auth-tree";
 
 const importToolSheetNav = (tool: string) => lazyExtensionUi("sheetnav", tool);
 
@@ -16,6 +17,7 @@ interface SheetNavProps {
 
 interface Portfolio {
     tools: Record<string, Tool>;
+    extensions?: Record<string, Tool>;
 }
 
 interface Tool {
@@ -32,7 +34,7 @@ export default function SheetNav({portfolio, org, tool, section}: SheetNavProps)
     }
 
     const { tree } = context as unknown as { tree: { portfolios: Record<string, Portfolio> } };
-    const portfolioTools = (portfolio && tree?.portfolios?.[portfolio]?.tools) || {};
+    const portfolioTools = portfolioCatalog(portfolio ? tree?.portfolios?.[portfolio] : undefined);
     const toolHandle = resolveToolHandle(portfolioTools, tool);
     if (!toolHandle) {
         return null;

@@ -29,16 +29,24 @@ export default function FormDelete({ selectedKey, selectedValue, refreshUp, path
         key: selectedKey,
         value: '',
       });
+    const [confirmation, setConfirmation] = useState('');
+
+    const expected = String(selectedValue ?? '');
+    const confirmed = confirmation === expected && expected.length > 0;
 
 
     // Populate the field
     useEffect(() => {
-        setFieldNow({"key":selectedKey,"value":selectedValue});     
-    }, []);
+        setFieldNow({"key":selectedKey,"value":selectedValue});
+        setConfirmation('');
+    }, [selectedKey, selectedValue]);
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         
         event.preventDefault(); // Prevent default form submission
+        if (!confirmed) {
+            return;
+        }
         // Create a FormData object from the form
         const formData = new FormData(event.currentTarget);
         // Convert the FormData entries directly into a plain object
@@ -141,9 +149,12 @@ export default function FormDelete({ selectedKey, selectedValue, refreshUp, path
                 <input 
                     name={fieldNow.key} 
                     type="text"
+                    value={confirmation}
+                    onChange={(event) => setConfirmation(event.target.value)}
+                    autoComplete="off"
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                 />
-                <Button>Confirm Delete</Button>
+                <Button type="submit" disabled={!confirmed}>Confirm Delete</Button>
             </div>            
         </form>
     );

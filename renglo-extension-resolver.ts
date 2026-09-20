@@ -20,6 +20,11 @@ const RESOLVED_VIRTUAL_EXTENSION_UI_ID = `\0${VIRTUAL_EXTENSION_UI_ID}`;
 export const EXTENSION_UI_KINDS = ["onboarding", "sidenav", "sheetnav", "tool"] as const;
 export type ExtensionUiKind = (typeof EXTENSION_UI_KINDS)[number];
 
+/** Portfolio tool handles from older installs → current UI catalog handle. */
+export const LEGACY_EXTENSION_UI_HANDLE_ALIASES: Record<string, string> = {
+  arbitium: "arbitiumlab",
+};
+
 const KIND_SUBPATH: Record<ExtensionUiKind, (name: string) => string> = {
   onboarding: (name) => `onboarding/${name}_onboarding.tsx`,
   sidenav: (name) => `navigation/${name}_sidenav.tsx`,
@@ -299,6 +304,15 @@ export function buildExtensionUiCatalog(
     }
   }
 
+  for (const [legacyHandle, canonicalHandle] of Object.entries(LEGACY_EXTENSION_UI_HANDLE_ALIASES)) {
+    for (const kind of EXTENSION_UI_KINDS) {
+      const canonicalPath = catalog[kind][canonicalHandle];
+      if (canonicalPath && !catalog[kind][legacyHandle]) {
+        catalog[kind][legacyHandle] = canonicalPath;
+      }
+    }
+  }
+
   return catalog;
 }
 
@@ -329,6 +343,25 @@ export function loadExtensionUi(kind, name) {
   return loader();
 }
 `;
+}
+
+function extensionUiRootFromImporter(importer: string | undefined): string | null {
+  if (!importer) {
+    return null;
+  }
+  const normalized = posixPath(path.resolve(importer));
+  const marker = "/extensions/";
+  const markerIndex = normalized.indexOf(marker);
+  if (markerIndex === -1) {
+    return null;
+  }
+  const afterExtensions = normalized.slice(markerIndex + marker.length);
+  const folder = afterExtensions.split("/")[0];
+  if (!folder) {
+    return null;
+  }
+  const uiRoot = path.join(normalized.slice(0, markerIndex), "extensions", folder, "ui");
+  return fs.existsSync(path.join(uiRoot, "package.json")) ? uiRoot : null;
 }
 
 function isExtensionImporter(
@@ -422,7 +455,15 @@ export function rengloExtensionResolver(): Plugin {
         const resolved = await this.resolve(source, hostImporter, {
           skipSelf: true,
         });
-        return resolved;
+        if (resolved) {
+          return resolved;
+        }
+        const uiRoot = extensionUiRootFromImporter(importer);
+        if (uiRoot) {
+          return this.resolve(source, path.join(uiRoot, "package.json"), {
+            skipSelf: true,
+          });
+        }
       }
 
       return null;

@@ -23,9 +23,11 @@ interface DialogPostProps {
   title: string;
   instructions: string;
   buttontext?:string;
+  successTitle?: string;
+  successDescription?: string;
 }
 
-export default function DialogPost({ refreshUp, blueprint, path, method, title, instructions, buttontext }: DialogPostProps) {
+export default function DialogPost({ refreshUp, blueprint, path, method, title, instructions, buttontext, successTitle, successDescription }: DialogPostProps) {
 
   const [open, setOpen] = useState(false);
   const formId = useId().replace(/:/g, "");
@@ -78,6 +80,8 @@ export default function DialogPost({ refreshUp, blueprint, path, method, title, 
             method={method}
             formId={formId}
             hideSubmitButton
+            successTitle={successTitle}
+            successDescription={successDescription}
           />
         </div>
       </DialogContent>

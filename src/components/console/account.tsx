@@ -19,6 +19,7 @@ import DialogPost from "@/components/console/dialog-post"
 import DialogProfileName from "@/components/console/dialog-profile-name"
 import DialogUserThumbnail from "@/components/console/dialog-user-thumbnail"
 import DialogTags from "@/components/console/dialog-tags"
+import DeleteToolMosaic from "@/components/console/delete-tool-mosaic"
 
 
 export const description =
@@ -253,7 +254,21 @@ export default function Account() {
                   
                 </div>
               </CardContent>             
-            </Card> 
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Delete extension (tool)</CardTitle>
+                <CardDescription>
+                  Re-run the delete-tool funnel for a specific extension id, including leftover entities that no longer appear on a card.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-muted-foreground">
+                  <DeleteToolMosaic />
+                </div>
+              </CardContent>
+            </Card>
             
           </div>
           

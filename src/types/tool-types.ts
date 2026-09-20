@@ -80,6 +80,7 @@ export interface Portfolio {
   portfolio_id: string;
   orgs: Record<string, Organization>;
   tools: Record<string, Tool>;
+  extensions?: Record<string, Tool>;
 }
 
 /**
@@ -88,7 +89,8 @@ export interface Portfolio {
 export interface Organization {
   name: string;
   org_id: string;
-  tools: string[]; // Array of tool IDs
+  tools: string[]; // Array of legacy tool IDs
+  extensions?: string[];
 }
 
 /**

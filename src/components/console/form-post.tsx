@@ -471,6 +471,8 @@ interface FormPostProps {
     method: string;
     formId?: string;
     hideSubmitButton?: boolean;
+    successTitle?: string;
+    successDescription?: string;
 }
 
 interface SourceFieldMeta {
@@ -591,6 +593,8 @@ export default function FormPost({
   method,
   formId,
   hideSubmitButton = false,
+  successTitle = "Data submitted successfully",
+  successDescription = "Data submitted successfully!",
 }: FormPostProps) {
 
   console.log('Blueprint @ FormPost')
@@ -1668,10 +1672,10 @@ export default function FormPost({
             console.log('Data submitted successfully!');
             setPendingFiles({});
             toast({
-              title: "Data submitted successfully",
+              title: successTitle,
               description: (
                   <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-                  <code className="text-white">Data submitted successfully!</code>
+                  <code className="text-white">{successDescription}</code>
                   </pre>
               ),
             });

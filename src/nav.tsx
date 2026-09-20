@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { GlobalContext } from "@/components/console/global-context";
 import { lazyExtensionUi, resolveToolHandle } from "@/lib/extension-ui";
+import { portfolioCatalog } from "@/lib/auth-tree";
 
 const importNav = (tool: string) => lazyExtensionUi("sidenav", tool);
 
@@ -15,6 +16,7 @@ interface SideNavProps {
 
 interface Portfolio {
     tools: Record<string, Tool>;
+    extensions?: Record<string, Tool>;
 }
 
 interface Tool {
@@ -31,7 +33,7 @@ export default function SideNav({portfolio, org, tool, section}: SideNavProps) {
     }
 
     const { tree } = context as unknown as { tree: { portfolios: Record<string, Portfolio> } };
-    const portfolioTools = (portfolio && tree?.portfolios?.[portfolio]?.tools) || {};
+    const portfolioTools = portfolioCatalog(portfolio ? tree?.portfolios?.[portfolio] : undefined);
     const toolHandle = resolveToolHandle(portfolioTools, tool);
     if (!toolHandle) {
         return null;

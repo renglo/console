@@ -13,6 +13,7 @@ import DialogDelete from "@/components/console/dialog-delete";
 import DialogTags from "@/components/console/dialog-tags";
 import TeamToolRoles from "@/components/console/team-tool-roles";
 import { orgsForExtensionAccess, PORTFOLIO_SCOPE_ORG, PORTFOLIO_SCOPE_ORG_LABEL } from "@/lib/sort-entities";
+import { installableId, teamInstallableAccess } from "@/lib/auth-tree";
 import { useState } from "react";
 
 interface ExtensionsCardProps {
@@ -35,6 +36,7 @@ interface Team {
   name: string;
   team_id: string;
   tools: TeamToolsAccess;
+  extensions?: TeamToolsAccess;
   tools_access: string[];
 }
 
@@ -57,6 +59,10 @@ export default function ExtensionsCard({
     console.log(refresh);
   };
 
+  const extensionId = installableId(extensiondoc);
+  const entityType =
+    extensiondoc.entity_type === "tool" ? "tool" : "extension";
+
   const orgEntries = orgsForExtensionAccess(orgsdict as Record<string, Org>).map(
     (org) => [org.org_id, org] as const,
   );
@@ -65,11 +71,13 @@ export default function ExtensionsCard({
     <Card>
       <CardHeader className="pb-2">
         <CardDescription>
-          @{extensiondoc.handle} id:{extensiondoc.tool_id}
+          @{extensiondoc.handle} id:{extensionId}
         </CardDescription>
         <CardTitle className="group text-lg">
           <span className="flex items-center gap-2">
-            <Badge variant="tool">Extension</Badge>
+            <Badge variant={entityType === "tool" ? "tool" : "extension"}>
+              {entityType}
+            </Badge>
             {extensiondoc.name}
             <span className={teamsdict ? "flex items-center gap-2" : "hidden"}>
               <DialogPut
@@ -78,12 +86,12 @@ export default function ExtensionsCard({
                 refreshUp={refreshAction}
                 title="Edit attribute"
                 instructions="Modify the attribute and click save."
-                path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensiondoc.tool_id}`}
+                path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensionId}`}
                 method="PUT"
               />
               <DialogTags
-                getUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensiondoc.tool_id}`}
-                putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensiondoc.tool_id}`}
+                getUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensionId}`}
+                putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensionId}`}
                 refreshUp={refreshAction}
                 title="Extension tags"
               />
@@ -94,7 +102,7 @@ export default function ExtensionsCard({
                 title="Delete entity"
                 instructions={`Are you sure you want to delete this extension?
                                 All its assets (data, models, history) will be permanently deleted.`}
-                path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensiondoc.tool_id}`}
+                path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensionId}`}
                 method="DELETE"
               />
             </span>
@@ -147,17 +155,17 @@ export default function ExtensionsCard({
                       <TeamToolRoles
                         teamId={row.team_id}
                         teamName={row.name}
-                        toolId={extensiondoc.tool_id}
+                        toolId={extensionId}
                         toolName={extensiondoc.name}
                         availableRoles={extensiondoc.roles || []}
-                        assignedRoles={row?.tools?.[extensiondoc.tool_id]?.roles || []}
+                        assignedRoles={teamInstallableAccess(row, extensionId).roles || []}
                         refreshUp={refreshAction}
                       />
                     </td>
 
                     {orgEntries.length ? (
                       orgEntries.map(([orgId, org]) =>
-                        row?.tools?.[extensiondoc.tool_id]?.orgs?.includes(orgId) ? (
+                        teamInstallableAccess(row, extensionId).orgs?.includes(orgId) ? (
                           <td key={orgId} className="border border-gray-300 p-2 text-left align-middle">
                             <DialogSwitch
                               refreshUp={refreshAction}
@@ -165,7 +173,7 @@ export default function ExtensionsCard({
                               instructions={`Do you want to remove access to team (${row.name})
                                                             from extension ${extensiondoc.name}
                                                             in ${orgId === PORTFOLIO_SCOPE_ORG ? PORTFOLIO_SCOPE_ORG_LABEL : org.name}?`}
-                              path={`${import.meta.env.VITE_API_URL}/_auth/teams/${row.team_id}/tools/${extensiondoc.tool_id}/orgs/${orgId}`}
+                              path={`${import.meta.env.VITE_API_URL}/_auth/teams/${row.team_id}/tools/${extensionId}/orgs/${orgId}`}
                               method="DELETE"
                               label=""
                             />
@@ -178,7 +186,7 @@ export default function ExtensionsCard({
                               instructions={`Do you want to add access to team (${row.name})
                                                             from extension ${extensiondoc.name}
                                                             in ${orgId === PORTFOLIO_SCOPE_ORG ? PORTFOLIO_SCOPE_ORG_LABEL : org.name}?`}
-                              path={`${import.meta.env.VITE_API_URL}/_auth/teams/${row.team_id}/tools/${extensiondoc.tool_id}/orgs/${orgId}`}
+                              path={`${import.meta.env.VITE_API_URL}/_auth/teams/${row.team_id}/tools/${extensionId}/orgs/${orgId}`}
                               method="POST"
                               label=""
                             />

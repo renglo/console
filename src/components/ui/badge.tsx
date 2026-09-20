@@ -22,6 +22,8 @@ const badgeVariants = cva(
           "border-transparent bg-fuchsia-800 text-destructive-foreground hover:bg-destructive/80",
         tool:
           "border-transparent bg-fuchsia-800 text-destructive-foreground hover:bg-destructive/80",
+        extension:
+          "border-transparent bg-fuchsia-800 text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
         inactive:
           "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 opacity-15",

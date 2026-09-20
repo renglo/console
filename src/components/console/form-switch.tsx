@@ -1,4 +1,4 @@
-import { FormEvent,useContext } from 'react';
+import { FormEvent, useContext, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast"
 import {GlobalContext} from "@/components/console/global-context"
@@ -17,10 +17,15 @@ export default function FormSwitch({ refreshUp, path, method }: FormSwitchProps)
     throw new Error('No GlobalProvider');
     }
     const { loadTree } = context;
+    const [pending, setPending] = useState(false);
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         
         event.preventDefault(); // Prevent default form submission
+        if (pending) {
+            return;
+        }
+        setPending(true);
 
         try {
             // Put the data to your server or API endpoint
@@ -74,6 +79,8 @@ export default function FormSwitch({ refreshUp, path, method }: FormSwitchProps)
                     </pre>
                 ),
                 });
+        } finally {
+            setPending(false);
         }
     };
 
@@ -85,7 +92,11 @@ export default function FormSwitch({ refreshUp, path, method }: FormSwitchProps)
     return (
         <form onSubmit={handleSubmit}>
             <div className="flex flex-col gap-4">
-                <Button>Confirm</Button>
+                {pending ? (
+                    <div className="text-sm text-muted-foreground">Waiting for response…</div>
+                ) : (
+                    <Button type="submit">Confirm</Button>
+                )}
             </div>            
         </form>
     );

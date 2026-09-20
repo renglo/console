@@ -15,9 +15,11 @@ import { GlobalContext } from "@/components/console/global-context"
 
 import ExtensionsCard from "@/components/console/extensions-card"
 import { sortByName } from "@/lib/sort-entities"
+import { installableId, portfolioCatalog } from "@/lib/auth-tree"
 
 interface Tool {
-  tool_id: string;
+  tool_id?: string;
+  extension_id?: string;
   name: string;
   handle: string;
   roles?: string[];
@@ -29,6 +31,7 @@ interface Portfolio {
   orgs: Record<string, Org>;
   teams: Record<string, Team>;
   tools: Record<string, Tool>;
+  extensions?: Record<string, Tool>;
 }
 
 interface Org {
@@ -119,25 +122,30 @@ export default function SettingsExtensions() {
               <CardHeader>
                 <CardTitle>Extensions</CardTitle>
                 <CardDescription>
-                List of active extensions in this portfolio:
+                Installed tools and extensions in this portfolio. A tool marker means it still needs a reinstall.
               </CardDescription>
               </CardHeader> 
             </Card>
             <div className="grid gap-4 grid-cols-1">
             {
-              (tree?.portfolios[p_portfolio]?.tools && Object.keys(tree?.portfolios[p_portfolio]?.tools).length > 0) ? (
-                sortByName(Object.values(tree?.portfolios[p_portfolio]?.tools as Record<string, Tool>)).map((row: Tool) => (
-                  <ExtensionsCard
-                    key={row.tool_id}
-                    extensiondoc={row}
-                    teamsdict={tree?.portfolios[p_portfolio]?.teams}
-                    orgsdict={tree?.portfolios[p_portfolio]?.orgs}
-                    portfolioid={p_portfolio}
-                  />
-                ))
-              ) : (
-                <div className="text-xs text-muted-foreground">No Extensions</div>
-              )
+              (() => {
+                const rows = sortByName(
+                  Object.values(portfolioCatalog(tree?.portfolios[p_portfolio])),
+                );
+                return rows.length > 0 ? (
+                  rows.map((row) => (
+                    <ExtensionsCard
+                      key={installableId(row)}
+                      extensiondoc={row}
+                      teamsdict={tree?.portfolios[p_portfolio]?.teams}
+                      orgsdict={tree?.portfolios[p_portfolio]?.orgs}
+                      portfolioid={p_portfolio}
+                    />
+                  ))
+                ) : (
+                  <div className="text-xs text-muted-foreground">No Extensions</div>
+                );
+              })()
             }
             </div>
             <button onClick={refreshTree} className="flex items-center">
