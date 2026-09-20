@@ -19,18 +19,21 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 
 import { Badge } from "@/components/ui/badge"
+import { orgInstallableIds, portfolioCatalog } from "@/lib/auth-tree"
 
 interface Portfolio {
   name: string;
   portfolio_id: string;
   orgs: Record<string, Org>;
   tools: Record<string, Tool>;
+  extensions?: Record<string, Tool>;
 }
 
 interface Org {
   name: string;
   org_id: string;
   tools: string[];
+  extensions?: string[];
 }
 
 interface Tool {
@@ -69,20 +72,20 @@ export default function ToolSwitch({ refreshUp }: ToolSwitchProps) {
   }, [location.pathname]);
   
   const findToolByName = (toolId: string) => {
-    if (!tree || !('portfolios' in tree) || !tree.portfolios[p_portfolio]?.tools) return null;
-    return tree.portfolios[p_portfolio].tools[toolId];
+    if (!tree || !('portfolios' in tree) || !tree.portfolios[p_portfolio]) return null;
+    return portfolioCatalog(tree.portfolios[p_portfolio])[toolId];
   };
   
   const [selectedToolName, setSelectedToolName] = useState(findToolByName(selectedTool)?.name || '');
 
   // Update tool name when tree or selectedTool changes
   useEffect(() => {
-    if (!selectedTool || !tree || !('portfolios' in tree) || !tree.portfolios[p_portfolio]?.tools) {
+    if (!selectedTool || !tree || !('portfolios' in tree) || !tree.portfolios[p_portfolio]) {
       setSelectedToolName('');
       return;
     }
     
-    const tool = tree.portfolios[p_portfolio].tools[selectedTool];
+    const tool = portfolioCatalog(tree.portfolios[p_portfolio])[selectedTool];
     setSelectedToolName(tool?.name || '');
   }, [selectedTool, tree, p_portfolio]);
 
@@ -112,16 +115,16 @@ export default function ToolSwitch({ refreshUp }: ToolSwitchProps) {
                        tree.portfolios[p_portfolio] && 
                        tree.portfolios[p_portfolio].orgs && 
                        tree.portfolios[p_portfolio].orgs[p_org] &&
-                       tree.portfolios[p_portfolio].orgs[p_org].tools ? (
-                          tree.portfolios[p_portfolio].orgs[p_org].tools.length > 0 ? (
-                            tree.portfolios[p_portfolio].orgs[p_org].tools
+                       (tree.portfolios[p_portfolio].orgs[p_org].tools || tree.portfolios[p_portfolio].orgs[p_org].extensions) ? (
+                          orgInstallableIds(tree.portfolios[p_portfolio].orgs[p_org]).length > 0 ? (
+                            orgInstallableIds(tree.portfolios[p_portfolio].orgs[p_org])
                               .map((tool_id) => (
                               <CommandItem
                                 key={tool_id}
                                 value={tool_id}
                                 onSelect={() => {
                                   setSelectedTool(tool_id);
-                                  setSelectedToolName(tree.portfolios[p_portfolio].tools[tool_id].name);
+                                  setSelectedToolName(portfolioCatalog(tree.portfolios[p_portfolio])[tool_id]?.name || '');
                                   setOpen(false);
                                   refreshUp();
                                   navigate(`/${p_portfolio}/${p_org}/${tool_id}`);
@@ -134,7 +137,7 @@ export default function ToolSwitch({ refreshUp }: ToolSwitchProps) {
                                       "text-xxs",
                                       tool_id === selectedTool ? "opacity-100" : "opacity-30"
                                     )}
-                                    variant="outline">{tree.portfolios[p_portfolio].tools[tool_id].name}</Badge>
+                                    variant="outline">{portfolioCatalog(tree.portfolios[p_portfolio])[tool_id]?.name}</Badge>
 
                                   <span
                                     className={cn(
@@ -142,7 +145,7 @@ export default function ToolSwitch({ refreshUp }: ToolSwitchProps) {
                                       tool_id === selectedTool ? "font-extrabold" : "font-light"
                                     )}
                                   >
-                                    {tree.portfolios[p_portfolio].tools[tool_id].name}
+                                    {portfolioCatalog(tree.portfolios[p_portfolio])[tool_id]?.name}
                                   </span>
                                 </div>
                               </CommandItem>

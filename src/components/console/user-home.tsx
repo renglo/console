@@ -22,6 +22,7 @@ import { useContext } from 'react';
 import { GlobalContext } from "@/components/console/global-context"
 import { NavLink } from "react-router-dom";
 import { PORTFOLIO_SCOPE_ORG, PORTFOLIO_SCOPE_ORG_LABEL, sortByName } from "@/lib/sort-entities";
+import { orgInstallableIds, portfolioCatalog } from "@/lib/auth-tree";
 
 
 interface Portfolio {
@@ -29,6 +30,7 @@ interface Portfolio {
   portfolio_id: string;
   orgs: Record<string, Org>;
   tools: Record<string, Tool>;
+  extensions?: Record<string, Tool>;
 }
 
 interface Org {
@@ -37,6 +39,7 @@ interface Org {
   active: boolean;
   handle: string;
   tools: string[];
+  extensions?: string[];
 }
 
 interface Tool {
@@ -121,10 +124,10 @@ export default function UserHome() {
                                         </span>
 
                                         
-                                        {Array.isArray(row['tools']) && row['tools'].length > 0 ? (
-                                            row['tools'].map((tool, index) => (
+                                        {orgInstallableIds(row).length > 0 ? (
+                                            orgInstallableIds(row).map((tool, index) => (
                                                 <NavLink key={index} to={`/${p.portfolio_id}/${row['org_id']}/${tool}`}>
-                                                    <Badge variant="outline" className="text-xxs">{p.tools[tool].name.substring(0, 10)}</Badge>
+                                                    <Badge variant="outline" className="text-xxs">{(portfolioCatalog(p)[tool]?.name || tool).substring(0, 10)}</Badge>
                                                 </NavLink>
                                             ))
                                         ) : (

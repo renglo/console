@@ -2,6 +2,7 @@ import { Suspense, useContext } from 'react';
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GlobalContext } from "@/components/console/global-context";
 import { lazyExtensionUi, resolveToolHandle } from "@/lib/extension-ui";
+import { portfolioCatalog } from "@/lib/auth-tree";
 
 
 interface Portfolio {
@@ -9,6 +10,7 @@ interface Portfolio {
     portfolio_id: string;
     orgs: Record<string, Org>;
     tools: Record<string, Tool>;
+    extensions?: Record<string, Tool>;
   }
   
 interface Org {
@@ -50,7 +52,7 @@ export default function ToolRouter() {
         return null;
     }
 
-    const portfolioTools = tree.portfolios[portfolio]?.tools || {};
+    const portfolioTools = portfolioCatalog(tree.portfolios[portfolio]);
     const tool_id = portfolioTools[tool]
         ? tool
         : Object.entries(portfolioTools).find(([_, toolData]) => toolData.handle === tool)?.[0];
