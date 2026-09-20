@@ -1,18 +1,22 @@
 /** Auth-tree helpers for the tool / extension coexistence window. */
 
-export type InstallableDoc = {
+/** Fields read from portfolio catalog entries. No index signature so local Tool types assign. */
+type CatalogSourceDoc = {
   name?: string;
   handle?: string;
   tool_id?: string;
   extension_id?: string;
   entity_type?: string;
   roles?: string[];
+};
+
+export type InstallableDoc = CatalogSourceDoc & {
   [key: string]: unknown;
 };
 
 type PortfolioNode = {
-  tools?: Record<string, InstallableDoc>;
-  extensions?: Record<string, InstallableDoc>;
+  tools?: Record<string, CatalogSourceDoc>;
+  extensions?: Record<string, CatalogSourceDoc>;
 };
 
 type OrgNode = {
