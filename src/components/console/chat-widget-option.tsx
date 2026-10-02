@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useChatSocket } from "@/components/console/chat-socket";
+import type { WebSocketPayload } from "@/hooks/useWebSocket";
 
 interface OptionItem {
   _out: Record<string, string>;
@@ -9,7 +10,7 @@ interface ChatWidgetOptionProps {
   key_id?: string | number;
   item: OptionItem;
   messageUp?: (msg: any) => void;
-  payload?: Record<string, any>;
+  payload?: WebSocketPayload;
 }
 
 export default function ChatWidgetOption({
@@ -18,13 +19,7 @@ export default function ChatWidgetOption({
   messageUp,
   payload = {},
 }: ChatWidgetOptionProps) {
-  const { sendMessage, isConnected } = useWebSocket({
-    onMessage: (data) => {
-      if (messageUp) {
-        messageUp({ type: "rs", update: data });
-      }
-    },
-  });
+  const { sendMessage, isConnected } = useChatSocket();
 
   const options = item?._out ?? {};
   const question = options["question"];

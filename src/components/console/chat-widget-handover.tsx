@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRightCircle } from "lucide-react";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useEffect, useRef } from "react";
+import { useChatSocket } from "@/components/console/chat-socket";
 
 interface HandoverPayload {
   case_id?: string;
@@ -50,13 +51,17 @@ export default function ChatWidgetHandover({
   item,
   messageUp,
 }: ChatWidgetHandoverProps) {
-  useWebSocket({
-    onMessage: (data) => {
-      if (messageUp && data) {
-        messageUp({ type: "refresh_workspace" });
+  const { subscribe } = useChatSocket();
+  const messageUpRef = useRef(messageUp);
+  messageUpRef.current = messageUp;
+
+  useEffect(() => {
+    return subscribe((data) => {
+      if (messageUpRef.current && data) {
+        messageUpRef.current({ type: "refresh_workspace" });
       }
-    },
-  });
+    });
+  }, [subscribe]);
 
   const handover: Handover = item?._out ?? {};
   const target = handover.target_agent ?? "unknown";

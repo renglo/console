@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useChatSocket } from "@/components/console/chat-socket";
+import type { WebSocketPayload } from "@/hooks/useWebSocket";
 
 interface SearchResult {
   id: string;
@@ -19,7 +20,7 @@ interface ChatWidgetSearchResultsProps {
   key_id?: string | number;
   item: { _out: SearchResultsPayload };
   messageUp?: (msg: any) => void;
-  payload?: Record<string, any>;
+  payload?: WebSocketPayload;
 }
 
 export default function ChatWidgetSearchResults({
@@ -28,13 +29,7 @@ export default function ChatWidgetSearchResults({
   messageUp,
   payload = {},
 }: ChatWidgetSearchResultsProps) {
-  const { sendMessage, isConnected } = useWebSocket({
-    onMessage: (data) => {
-      if (messageUp) {
-        messageUp({ type: "rs", update: data });
-      }
-    },
-  });
+  const { sendMessage, isConnected } = useChatSocket();
 
   const data = item?._out ?? {};
   const results: SearchResult[] = data.results ?? [];

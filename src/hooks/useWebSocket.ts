@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 
-interface WebSocketPayload {
+export interface WebSocketPayload {
   action?: string;
   entity_type?: string;
   entity_id?: string;
@@ -8,10 +8,11 @@ interface WebSocketPayload {
   portfolio?: string;
   org?: string;
   next?: string;
+  core?: string;
 }
 
 interface UseWebSocketOptions {
-  onMessage?: (data: any) => void;
+  onMessage?: (data: unknown) => void;
   onError?: (error: Event) => void;
   onOpen?: () => void;
   onClose?: () => void;
@@ -24,20 +25,34 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const connectingRef = useRef(false);
-  
-  // Store callbacks in refs to prevent recreation
+  const intentionalCloseRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const callbacksRef = useRef(options);
   callbacksRef.current = options;
 
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current != null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
+
   const connectWebSocket = useCallback(() => {
-    // Prevent multiple simultaneous connection attempts
-    if (connectingRef.current || (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING)) {
+    if (
+      connectingRef.current ||
+      (wsRef.current &&
+        (wsRef.current.readyState === WebSocket.CONNECTING ||
+          wsRef.current.readyState === WebSocket.OPEN))
+    ) {
       return;
     }
-    
+
+    intentionalCloseRef.current = false;
+    clearReconnectTimer();
     connectingRef.current = true;
     setIsConnecting(true);
-    
+
     const socket = new WebSocket(`${import.meta.env.VITE_WEBSOCKET_URL}`);
 
     socket.onopen = () => {
@@ -67,26 +82,29 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       connectingRef.current = false;
       setIsConnecting(false);
       setIsConnected(false);
-      callbacksRef.current.onClose?.();
-      
-      // Attempt to reconnect after a delay
-      if (callbacksRef.current.autoReconnect !== false) {
-        setTimeout(() => {
-          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-            connectWebSocket();
-          }
-        }, callbacksRef.current.reconnectDelay || 3000);
+      if (wsRef.current === socket) {
+        wsRef.current = null;
       }
+      callbacksRef.current.onClose?.();
+
+      if (intentionalCloseRef.current || callbacksRef.current.autoReconnect === false) {
+        return;
+      }
+
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        connectWebSocket();
+      }, callbacksRef.current.reconnectDelay || 3000);
     };
 
     wsRef.current = socket;
-  }, []);
+  }, [clearReconnectTimer]);
 
   const sendMessage = useCallback((message: string, payload: WebSocketPayload = {}) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log('Message out:', message);
+      console.log("Message out:", message);
 
-      const core = 'core' in payload ? payload.core : 'default';
+      const core = "core" in payload ? payload.core : "default";
 
       const ws_payload = {
         action: payload.action,
@@ -98,43 +116,42 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         portfolio: payload.portfolio,
         next: payload.next,
         core: core,
-        org: payload.org
+        org: payload.org,
       };
 
       wsRef.current.send(JSON.stringify(ws_payload));
       return true;
-    } else {
-      console.error("WebSocket is not connected.");
-      // Attempt to reconnect if not already connecting
-      if (!connectingRef.current) {
-        connectWebSocket();
-      }
-      return false;
     }
+
+    console.error("WebSocket is not connected.");
+    if (!connectingRef.current) {
+      connectWebSocket();
+    }
+    return false;
   }, [connectWebSocket]);
 
   const disconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-  }, []);
+    intentionalCloseRef.current = true;
+    clearReconnectTimer();
+    wsRef.current?.close();
+  }, [clearReconnectTimer]);
 
   useEffect(() => {
     connectWebSocket();
 
-    // Clean up the WebSocket connection when the component unmounts
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      intentionalCloseRef.current = true;
+      clearReconnectTimer();
+      wsRef.current?.close();
+      wsRef.current = null;
     };
-  }, [connectWebSocket]);
+  }, [connectWebSocket, clearReconnectTimer]);
 
   return {
     sendMessage,
     disconnect,
     isConnected,
     isConnecting,
-    connect: connectWebSocket
+    connect: connectWebSocket,
   };
-}; 
+};

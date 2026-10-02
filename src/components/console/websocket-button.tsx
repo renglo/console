@@ -2,16 +2,8 @@ import {
     Send,
 } from "lucide-react"
 import { useEffect } from "react";
-import { useWebSocket } from "../../hooks/useWebSocket";
-
-interface WebSocketPayload {
-  action?: string;
-  entity_type?: string;
-  entity_id?: string;
-  thread?: string;
-  portfolio?: string;
-  org?: string;
-}
+import { useChatSocket } from "@/components/console/chat-socket";
+import type { WebSocketPayload } from "@/hooks/useWebSocket";
 
 interface ButtonProps {
   messageUp: (response: any) => void;
@@ -23,15 +15,7 @@ interface ButtonProps {
 
 export default function WebSocketButton({messageUp,messageReset,message,payload = {} as WebSocketPayload, trigger}: ButtonProps) {
 
-    const { sendMessage, isConnected } = useWebSocket({
-        onMessage: (data) => {
-            const msg = {
-                "type": 'rs',
-                "update": data
-            };
-            messageUp(msg);
-        }
-    });
+    const { sendMessage, isConnected } = useChatSocket();
 
     useEffect(() => {
         if (trigger) {
