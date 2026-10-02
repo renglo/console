@@ -46,18 +46,17 @@ export default function ChatButton({ path, method, messageUp, messageReset, mess
       }
       
       
-      if (response.ok) {
-        const jsonResponse = await response.json();
-
-        const msg = {
-          "type": "refresh_chat",
-          "response": jsonResponse
-        };
-        messageUp(msg);
-
-      } else {
-        messageUp({'success':false});
+      let jsonResponse = null;
+      try {
+        jsonResponse = await response.json();
+      } catch {
+        jsonResponse = null;
       }
+      messageUp({
+        type: "refresh_chat",
+        response: jsonResponse,
+        success: response.ok,
+      });
 
     } catch (error) {
       console.error('Error:', error);
