@@ -30,6 +30,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
   const callbacksRef = useRef(options);
   callbacksRef.current = options;
+  const generationRef = useRef(0);
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectTimerRef.current != null) {
@@ -54,8 +55,13 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     setIsConnecting(true);
 
     const socket = new WebSocket(`${import.meta.env.VITE_WEBSOCKET_URL}`);
+    const generation = ++generationRef.current;
 
     socket.onopen = () => {
+      if (generation !== generationRef.current) {
+        socket.close();
+        return;
+      }
       console.log("WebSocket connected");
       connectingRef.current = false;
       setIsConnecting(false);
@@ -64,6 +70,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     };
 
     socket.onmessage = (event) => {
+      if (generation !== generationRef.current) return;
       console.log("Received message:", event.data);
       const parsedData = JSON.parse(event.data);
       callbacksRef.current.onMessage?.(parsedData);
@@ -79,6 +86,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
     socket.onclose = () => {
       console.log("WebSocket disconnected");
+      if (generation !== generationRef.current) return;
       connectingRef.current = false;
       setIsConnecting(false);
       setIsConnected(false);
@@ -141,9 +149,12 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
     return () => {
       intentionalCloseRef.current = true;
+      connectingRef.current = false;
+      generationRef.current += 1;
       clearReconnectTimer();
-      wsRef.current?.close();
+      const socket = wsRef.current;
       wsRef.current = null;
+      socket?.close();
     };
   }, [connectWebSocket, clearReconnectTimer]);
 
