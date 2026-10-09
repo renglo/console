@@ -16,5 +16,7 @@ declare module "virtual:renglo-extension-ui" {
     kind: ExtensionUiKind,
     name: string,
   ): Promise<{ default: import("react").ComponentType<any> }>;
+  /** URL for extensions/<handle>/ui/icon.svg. Empty when the file is absent. */
+  export function extensionIconUrl(name: string): string;
 }
 
