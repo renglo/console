@@ -20,6 +20,7 @@ import DialogProfileName from "@/components/console/dialog-profile-name"
 import DialogUserThumbnail from "@/components/console/dialog-user-thumbnail"
 import DialogTags from "@/components/console/dialog-tags"
 import DeleteToolMosaic from "@/components/console/delete-tool-mosaic"
+import DeletePortfolioMosaic from "@/components/console/delete-portfolio-mosaic"
 
 
 export const description =
@@ -254,6 +255,20 @@ export default function Account() {
                   
                 </div>
               </CardContent>             
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Delete portfolio</CardTitle>
+                <CardDescription>
+                  Hide a portfolio by typing its id and its name. This is the only place in the console that can delete a portfolio.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-muted-foreground">
+                  <DeletePortfolioMosaic />
+                </div>
+              </CardContent>
             </Card>
 
             <Card>

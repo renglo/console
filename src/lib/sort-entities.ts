@@ -22,17 +22,12 @@ export function sortOrgsForAccess<T extends { org_id: string; name?: string | nu
   });
 }
 
-/** Settings/extensions matrix always includes the portfolio-scoped pseudo-org. */
+/** Org columns on the extensions settings matrix. Skips the portfolio-scoped pseudo-org. */
 export function orgsForExtensionAccess<
   T extends { org_id: string; name?: string | null; handle?: string },
 >(orgsdict: Record<string, T> | undefined | null): T[] {
-  const orgs = Object.values(orgsdict || {});
-  if (!orgs.some((org) => org.org_id === PORTFOLIO_SCOPE_ORG)) {
-    orgs.push({
-      org_id: PORTFOLIO_SCOPE_ORG,
-      name: PORTFOLIO_SCOPE_ORG_LABEL,
-      handle: PORTFOLIO_SCOPE_ORG,
-    } as T);
-  }
+  const orgs = Object.values(orgsdict || {}).filter(
+    (org) => org.org_id !== PORTFOLIO_SCOPE_ORG,
+  );
   return sortOrgsForAccess(orgs);
 }

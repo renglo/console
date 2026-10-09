@@ -13,7 +13,7 @@ import { GlobalContext } from "@/components/console/global-context"
 
 import OrgsCard from "@/components/console/orgs-card"
 import DialogPost from "@/components/console/dialog-post"
-import { sortByName } from "@/lib/sort-entities"
+import { PORTFOLIO_SCOPE_ORG, sortByName } from "@/lib/sort-entities"
 
 
 interface Blueprint {
@@ -86,9 +86,9 @@ export default function SettingsOrgs() {
           <div className="grid gap-1 overflow-y-auto max-h-[calc(100vh-180px)]">
             <Card className="">
               <CardHeader>
-                <CardTitle>Organizations</CardTitle>
+                <CardTitle>Entities</CardTitle>
                 <CardDescription>
-                   An organization is a stand-alone entity that belongs to your portfolio.
+                   Entities are stand-alone and belong to your portfolio.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -104,20 +104,22 @@ export default function SettingsOrgs() {
             </Card>
             <div className="grid gap-4 grid-cols-2">
             {
-              (tree?.portfolios[p_portfolio]?.orgs && Object.keys(tree?.portfolios[p_portfolio]?.orgs).length > 0) ? (
-                  sortByName(Object.values(tree?.portfolios[p_portfolio]?.orgs)).map((row) => (
-
+              (() => {
+                const orgs = sortByName(Object.values(tree?.portfolios[p_portfolio]?.orgs || {}))
+                  .filter((row) => row['org_id'] !== PORTFOLIO_SCOPE_ORG);
+                return orgs.length > 0 ? (
+                  orgs.map((row) => (
                     <OrgsCard
                       key={row['org_id']}
                       orgdoc={row}
                       teamsdict={tree?.portfolios[p_portfolio]?.teams}
                       portfolioid={p_portfolio}
                     />
-
                   ))
-              ) : (
-                <div className="text-xs text-muted-foreground">No Orgs</div>
-              )
+                ) : (
+                  <div className="text-xs text-muted-foreground">No Orgs</div>
+                );
+              })()
             }
             </div>  
           </div>

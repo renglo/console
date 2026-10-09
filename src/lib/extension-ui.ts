@@ -1,5 +1,6 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import {
+  extensionIconUrl,
   listExtensionHandles,
   loadExtensionUi,
   type ExtensionUiKind,
@@ -39,6 +40,17 @@ export function resolveToolHandle(
 /** Marketplace cards: every discovered onboarding UI. */
 export function marketplaceHandles(): string[] {
   return listExtensionHandles("onboarding");
+}
+
+/** First matching ui/icon.svg among the given handles. Empty when none ship one. */
+export function extensionIconSrc(...keys: Array<string | undefined>): string {
+  for (const key of keys) {
+    const trimmed = key?.trim();
+    if (!trimmed || trimmed === "undefined") continue;
+    const url = extensionIconUrl(trimmed);
+    if (url) return url;
+  }
+  return "";
 }
 
 export function lazyExtensionUi(

@@ -316,7 +316,38 @@ export function buildExtensionUiCatalog(
   return catalog;
 }
 
-function renderExtensionUiModule(catalog: ExtensionUiCatalog): string {
+const ICON_FILE = "icon.svg";
+
+/** handle → absolute path of ui/icon.svg, when the extension ships one. */
+export function buildExtensionIconCatalog(
+  extensionsRoot: string,
+  nodeModulesRoot: string,
+  roots?: Map<string, string[]>,
+): Record<string, string> {
+  const discovered = roots ?? discoverExtensionUiRoots(extensionsRoot, nodeModulesRoot);
+  const icons: Record<string, string> = {};
+
+  for (const name of [...discovered.keys()].sort()) {
+    const resolved = resolveFromRoots(discovered.get(name) ?? [], ICON_FILE);
+    if (resolved && resolved.endsWith(".svg")) {
+      icons[name] = posixPath(resolved);
+    }
+  }
+
+  for (const [legacyHandle, canonicalHandle] of Object.entries(LEGACY_EXTENSION_UI_HANDLE_ALIASES)) {
+    const canonicalPath = icons[canonicalHandle];
+    if (canonicalPath && !icons[legacyHandle]) {
+      icons[legacyHandle] = canonicalPath;
+    }
+  }
+
+  return icons;
+}
+
+function renderExtensionUiModule(
+  catalog: ExtensionUiCatalog,
+  icons: Record<string, string>,
+): string {
   const loaders = EXTENSION_UI_KINDS.map((kind) => {
     const entries = Object.entries(catalog[kind])
       .map(
@@ -327,8 +358,25 @@ function renderExtensionUiModule(catalog: ExtensionUiCatalog): string {
     return `  ${kind}: {\n${entries}\n  }`;
   }).join(",\n");
 
-  return `const loaders = {
+  const iconEntries = Object.entries(icons);
+  const iconImports = iconEntries
+    .map(
+      ([, filePath], index) =>
+        `import icon_${index} from ${JSON.stringify(viteImportSpecifier(filePath))};`,
+    )
+    .join("\n");
+  const iconMap = iconEntries
+    .map(([name], index) => `  ${JSON.stringify(name)}: icon_${index}`)
+    .join(",\n");
+
+  return `${iconImports}
+
+const loaders = {
 ${loaders}
+};
+
+const iconUrls = {
+${iconMap}
 };
 
 export function listExtensionHandles(kind) {
@@ -341,6 +389,11 @@ export function loadExtensionUi(kind, name) {
     return Promise.reject(new Error("Extension UI not found: " + kind + "/" + name));
   }
   return loader();
+}
+
+export function extensionIconUrl(name) {
+  const key = String(name || "").trim();
+  return iconUrls[key] || "";
 }
 `;
 }
@@ -473,13 +526,15 @@ export function rengloExtensionResolver(): Plugin {
         return null;
       }
       const catalog = buildExtensionUiCatalog(extensionsRoot, nodeModulesRoot);
+      const icons = buildExtensionIconCatalog(extensionsRoot, nodeModulesRoot);
       const onboarded = Object.keys(catalog.onboarding);
       console.log(
         `[renglo-extension-ui] onboarding=${onboarded.join(",") || "(none)"} ` +
           `sidenav=${Object.keys(catalog.sidenav).join(",") || "(none)"} ` +
-          `tool=${Object.keys(catalog.tool).join(",") || "(none)"}`,
+          `tool=${Object.keys(catalog.tool).join(",") || "(none)"} ` +
+          `icon=${Object.keys(icons).join(",") || "(none)"}`,
       );
-      return renderExtensionUiModule(catalog);
+      return renderExtensionUiModule(catalog, icons);
     },
   };
 }

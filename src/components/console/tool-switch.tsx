@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils"
+import ExtensionIcon from "@/components/console/extension-icon"
+import { resolveToolHandle } from "@/lib/extension-ui"
 import {
   Command,
   CommandEmpty,
@@ -71,10 +73,14 @@ export default function ToolSwitch({ refreshUp }: ToolSwitchProps) {
     setSelectedTool(location.pathname.split('/')[3]);
   }, [location.pathname]);
   
-  const findToolByName = (toolId: string) => {
-    if (!tree || !('portfolios' in tree) || !tree.portfolios[p_portfolio]) return null;
-    return portfolioCatalog(tree.portfolios[p_portfolio])[toolId];
+  const catalog = () => {
+    if (!tree || !('portfolios' in tree) || !tree.portfolios[p_portfolio]) return {};
+    return portfolioCatalog(tree.portfolios[p_portfolio]);
   };
+
+  const findToolByName = (toolId: string) => catalog()[toolId];
+
+  const iconHandle = (toolId: string) => resolveToolHandle(catalog(), toolId) || "";
   
   const [selectedToolName, setSelectedToolName] = useState(findToolByName(selectedTool)?.name || '');
 
@@ -93,11 +99,17 @@ export default function ToolSwitch({ refreshUp }: ToolSwitchProps) {
     <div className="flex items-center space-x-4">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>     
-            <div className="flex items-center flex-col">
+            <div className="flex items-center gap-2">
             {selectedTool ? (
-            
+            <>
+            <ExtensionIcon
+              handle={iconHandle(selectedTool)}
+              id={selectedTool}
+              name={selectedToolName || selectedTool}
+              size="sm"
+            />
             <Badge variant="outline" className="text-xxs">{selectedToolName}</Badge>
-            
+            </>
             ) : (
             <span className="text-xxs ">Select One</span>
             )}
@@ -131,7 +143,12 @@ export default function ToolSwitch({ refreshUp }: ToolSwitchProps) {
                                 }}
                               >
                                 <div className="flex items-center gap-4 flex-row">
-                                  
+                                  <ExtensionIcon
+                                    handle={iconHandle(tool_id)}
+                                    id={tool_id}
+                                    name={portfolioCatalog(tree.portfolios[p_portfolio])[tool_id]?.name || tool_id}
+                                    size="sm"
+                                  />
                                   <Badge
                                     className={cn(
                                       "text-xxs",

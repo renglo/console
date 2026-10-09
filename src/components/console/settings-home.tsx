@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/hover-card"
 
 import DialogPut from '@/components/console/dialog-put'
-import DialogDelete from '@/components/console/dialog-delete'
 import DialogTags from '@/components/console/dialog-tags'
 
 import { GlobalContext } from "@/components/console/global-context"
@@ -120,15 +119,6 @@ export default function SettingsHome() {
                         refreshUp={refreshAction}
                         title="Portfolio tags"
                       />
-                      <DialogDelete 
-                            selectedKey='name' 
-                            selectedValue={tree.portfolios[p_portfolio].name} 
-                            refreshUp={refreshAction}
-                            title="Delete entity"
-                            instructions="Are you sure you want to delete this portfolio?"
-                            path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${p_portfolio}`}
-                            method='DELETE'
-                      />            
                   </span>
                   <HoverCard>
                     <HoverCardTrigger><Braces className="h-5 w-5" /></HoverCardTrigger>

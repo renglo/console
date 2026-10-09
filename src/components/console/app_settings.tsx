@@ -67,7 +67,7 @@ export default function AppSettings() {
                   ? "font-semibold text-primary"  // Active state
                   : ""
               }
-            >Organizations</Link>
+            >Entities</Link>
             <Link 
               to={`/${p_portfolio}/settings/teams`}
               className={

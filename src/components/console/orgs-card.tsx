@@ -81,8 +81,7 @@ export default function OrgsCard({orgdoc,teamsdict,portfolioid}: OrgMosaicProps)
                               selectedValue={orgdoc.name} 
                               refreshUp={refreshAction}
                               title="Delete entity"
-                              instructions={`Are you sure you want to delete this Organization? 
-                                All its assets (data, models, history) will be permanently deleted.`}
+                              instructions="Are you sure you want to delete the organization?"
                               path={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/orgs/${orgdoc.org_id}`}
                               method='DELETE'
                       /> 
