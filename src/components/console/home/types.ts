@@ -18,6 +18,8 @@ export type HomeOrg = {
   /** Tag pairs, director / studio / year first, then any other tags. */
   tags: HomeTag[];
   extensions: HomeExtension[];
+  /** Where a thumbnail click opens (extension handle in the path when set). */
+  thumbnailTarget: string | null;
 };
 
 export type HomePortfolio = {

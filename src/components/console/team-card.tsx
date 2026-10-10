@@ -34,6 +34,7 @@ import DialogPut from '@/components/console/dialog-put'
 import DialogDelete from '@/components/console/dialog-delete'
 import DialogDeleteText from '@/components/console/dialog-delete-text'
 import DialogTags from '@/components/console/dialog-tags'
+import DialogPreferences from '@/components/console/dialog-preferences'
 
 
 interface TeamCardProps { 
@@ -125,6 +126,12 @@ export default function TeamCard({teamdoc,portfolioid}: TeamCardProps) {
                       putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/teams/${teamdoc.team_id}`}
                       refreshUp={refreshAction}
                       title="Team tags"
+                    />
+                    <DialogPreferences
+                      getUrl={`${import.meta.env.VITE_API_URL}/_auth/teams/${portfolioid}-${teamdoc.team_id}`}
+                      putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/teams/${teamdoc.team_id}`}
+                      refreshUp={refreshAction}
+                      title="Team preferences"
                     />
                     <DialogDelete 
                           selectedKey='name' 

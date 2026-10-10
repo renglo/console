@@ -11,6 +11,7 @@ import DialogSwitch from "@/components/console/dialog-switch";
 import DialogPut from "@/components/console/dialog-put";
 import DialogDelete from "@/components/console/dialog-delete";
 import DialogTags from "@/components/console/dialog-tags";
+import DialogPreferences from "@/components/console/dialog-preferences";
 import TeamToolRoles from "@/components/console/team-tool-roles";
 import { orgsForExtensionAccess, PORTFOLIO_SCOPE_ORG, PORTFOLIO_SCOPE_ORG_LABEL } from "@/lib/sort-entities";
 import { installableId, teamInstallableAccess } from "@/lib/auth-tree";
@@ -94,6 +95,12 @@ export default function ExtensionsCard({
                 putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensionId}`}
                 refreshUp={refreshAction}
                 title="Extension tags"
+              />
+              <DialogPreferences
+                getUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensionId}`}
+                putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${extensionId}`}
+                refreshUp={refreshAction}
+                title="Extension preferences"
               />
               <DialogDelete
                 selectedKey="name"

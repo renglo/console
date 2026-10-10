@@ -10,6 +10,7 @@ import DialogPut from '@/components/console/dialog-put'
 import DialogUpload from '@/components/console/dialog-upload'
 import DialogDelete from '@/components/console/dialog-delete'
 import DialogTags from '@/components/console/dialog-tags'
+import DialogPreferences from '@/components/console/dialog-preferences'
 import EntityTagsList from '@/components/console/entity-tags-list'
 import { useState, useEffect, useContext } from 'react';
 import { GlobalContext } from '@/components/console/global-context'
@@ -75,6 +76,12 @@ export default function OrgsCard({orgdoc,teamsdict,portfolioid}: OrgMosaicProps)
                         putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/orgs/${orgdoc.org_id}`}
                         refreshUp={refreshAction}
                         title="Organization tags"
+                      />
+                      <DialogPreferences
+                        getUrl={`${import.meta.env.VITE_API_URL}/_auth/orgs/${portfolioid}-${orgdoc.org_id}`}
+                        putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/orgs/${orgdoc.org_id}`}
+                        refreshUp={refreshAction}
+                        title="Organization preferences"
                       />
                       <DialogDelete 
                               selectedKey='name' 

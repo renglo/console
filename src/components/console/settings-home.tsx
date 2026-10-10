@@ -20,6 +20,7 @@ import {
 
 import DialogPut from '@/components/console/dialog-put'
 import DialogTags from '@/components/console/dialog-tags'
+import DialogPreferences from '@/components/console/dialog-preferences'
 
 import { GlobalContext } from "@/components/console/global-context"
 import { useState,useContext } from 'react';
@@ -118,6 +119,12 @@ export default function SettingsHome() {
                         putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${p_portfolio}`}
                         refreshUp={refreshAction}
                         title="Portfolio tags"
+                      />
+                      <DialogPreferences
+                        getUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${p_portfolio}`}
+                        putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${p_portfolio}`}
+                        refreshUp={refreshAction}
+                        title="Portfolio preferences"
                       />
                   </span>
                   <HoverCard>

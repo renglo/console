@@ -143,8 +143,9 @@ export default function DialogTags({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Add tags as key-value rows. Use the same key more than once to store
-            multiple values (for example, two locations for one organization).
+            Tags describe the entity metadata. Use the same key
+            more than once to store multiple values (for example, two
+            locations for one organization).
           </DialogDescription>
         </DialogHeader>
 

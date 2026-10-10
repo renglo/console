@@ -11,6 +11,7 @@ import DialogSwitch from '@/components/console/dialog-switch'
 import DialogPut from '@/components/console/dialog-put'
 import DialogDelete from '@/components/console/dialog-delete'
 import DialogTags from '@/components/console/dialog-tags'
+import DialogPreferences from '@/components/console/dialog-preferences'
 import TeamToolRoles from '@/components/console/team-tool-roles'
 import { useState } from 'react';
 
@@ -94,6 +95,12 @@ export default function ToolsCard({tooldoc,teamsdict,orgsdict,portfolioid}: Tool
                         putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${tooldoc.tool_id}`}
                         refreshUp={refreshAction}
                         title="Tool tags"
+                      />
+                      <DialogPreferences
+                        getUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${tooldoc.tool_id}`}
+                        putUrl={`${import.meta.env.VITE_API_URL}/_auth/portfolios/${portfolioid}/tools/${tooldoc.tool_id}`}
+                        refreshUp={refreshAction}
+                        title="Tool preferences"
                       />
                       <DialogDelete 
                               selectedKey='name' 

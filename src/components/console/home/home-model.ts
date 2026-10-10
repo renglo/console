@@ -1,5 +1,6 @@
 import { orgInstallableIds, portfolioCatalog } from '@/lib/auth-tree';
 import { orgThumbnailUrl } from '@/lib/image-upload';
+import { orgOpenPath } from '@/lib/resolve-preferences';
 import { PORTFOLIO_SCOPE_ORG, PORTFOLIO_SCOPE_ORG_LABEL, sortByName } from '@/lib/sort-entities';
 
 import type { HomeOrg, HomePortfolio, HomeTag } from './types';
@@ -12,6 +13,7 @@ type RawOrg = {
   tools?: string[];
   extensions?: string[];
   tags?: Record<string, string | string[] | null | undefined>;
+  preferences?: Record<string, string>;
 };
 
 const TAG_KEY_ORDER = ['director', 'studio', 'year'];
@@ -43,6 +45,8 @@ type RawPortfolio = {
   name?: string;
   portfolio_id: string;
   about?: string;
+  preferences?: Record<string, string>;
+  teams?: Record<string, { name?: string; preferences?: Record<string, string> }>;
   orgs?: Record<string, RawOrg>;
   tools?: Record<string, { name?: string; handle?: string }>;
   extensions?: Record<string, { name?: string; handle?: string }>;
@@ -55,6 +59,7 @@ function displayName(org: RawOrg): string {
 
 export function homePortfoliosFromTree(
   portfolios: Record<string, RawPortfolio> | undefined,
+  userPreferences?: Record<string, string>,
 ): HomePortfolio[] {
   if (!portfolios) return [];
 
@@ -72,6 +77,18 @@ export function homePortfoliosFromTree(
             handle: String(catalog[id]?.handle || ''),
           })),
         );
+        const thumbnailTarget = orgOpenPath(
+          portfolio.portfolio_id,
+          org.org_id,
+          extensions,
+          {
+            teams: portfolio.teams,
+            org: org.preferences,
+            portfolio: portfolio.preferences,
+            user: userPreferences,
+          },
+        );
+
         return {
           orgId: org.org_id,
           name: displayName(org),
@@ -82,6 +99,7 @@ export function homePortfoliosFromTree(
           isScope,
           tags: orgTags(org.tags),
           extensions,
+          thumbnailTarget,
         };
       });
 

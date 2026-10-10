@@ -19,6 +19,7 @@ import DialogPost from "@/components/console/dialog-post"
 import DialogProfileName from "@/components/console/dialog-profile-name"
 import DialogUserThumbnail from "@/components/console/dialog-user-thumbnail"
 import DialogTags from "@/components/console/dialog-tags"
+import DialogPreferences from "@/components/console/dialog-preferences"
 import DeleteToolMosaic from "@/components/console/delete-tool-mosaic"
 import DeletePortfolioMosaic from "@/components/console/delete-portfolio-mosaic"
 
@@ -230,6 +231,28 @@ export default function Account() {
                     getUrl={`${import.meta.env.VITE_API_URL}/_auth/user`}
                     putUrl={`${import.meta.env.VITE_API_URL}/_auth/user`}
                     title="User tags"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Your preferences</CardTitle>
+                <CardDescription>
+                  Preferences here apply only to you when you use the console. Other
+                  people on your teams or portfolios are not affected. To set
+                  preferences for a portfolio, team, org, or extension, use that
+                  entity's preferences in Settings.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs text-muted-foreground">
+                  <DialogPreferences
+                    getUrl={`${import.meta.env.VITE_API_URL}/_auth/user`}
+                    putUrl={`${import.meta.env.VITE_API_URL}/_auth/user`}
+                    title="Your preferences"
+                    description="These apply only to your account. Other users never inherit them. Team, portfolio, org, and extension preferences are edited on each entity in Settings."
                   />
                 </div>
               </CardContent>

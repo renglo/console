@@ -14,13 +14,15 @@ export default function HomePage() {
   if (!context) {
     throw new Error('No GlobalProvider');
   }
-  const { tree } = context as unknown as { tree: { portfolios?: AuthTreePortfolios } };
+  const { tree } = context as unknown as {
+    tree: { portfolios?: AuthTreePortfolios; preferences?: Record<string, string> };
+  };
 
   const [activeId, setActiveId] = useState(ALL_PORTFOLIOS);
   const [query, setQuery] = useState('');
 
   const portfolios = useMemo(
-    () => homePortfoliosFromTree(tree?.portfolios),
+    () => homePortfoliosFromTree(tree?.portfolios, tree?.preferences),
     [tree],
   );
 
