@@ -30,6 +30,7 @@ import { useState, useEffect } from 'react';
 //import AppsMosaic from "@/components/console/apps-mosaic"
 //import OrgsCard from "@/components/console/orgs-card"
 import DialogInvite from '@/components/console/dialog-invite'
+import InviteActions, { InviteDocument } from '@/components/console/invite-actions'
 import DialogPut from '@/components/console/dialog-put'
 import DialogDelete from '@/components/console/dialog-delete'
 import DialogDeleteText from '@/components/console/dialog-delete-text'
@@ -48,6 +49,10 @@ interface User {
   last: string;
   email: string;
   user_id: string;
+  membership?: 'active' | 'invited';
+  link?: string;
+  expires_at?: number;
+  expired?: boolean;
 }
 
 
@@ -157,7 +162,7 @@ export default function TeamCard({teamdoc,portfolioid}: TeamCardProps) {
                       team_id={teamdoc.team_id} 
                       refreshUp={refreshAction}
                       title= {`Invite a collaborator to team : ${teamdoc.name}`}
-                      instructions="Invite by email. If they are not in the system yet, they receive an email with a link to complete signup."
+                      instructions="Create an invitation link you can share. Email is optional. They stay Invited until they accept. After they accept and have opened the app, they show as Active."
                       path={`${import.meta.env.VITE_API_URL}/_auth/user/invite`}
                       method='POST'
                 />
@@ -166,29 +171,47 @@ export default function TeamCard({teamdoc,portfolioid}: TeamCardProps) {
 
               {
                 teamusers && Object.keys(teamusers).length > 0 ? (
-                  (Object.values(teamusers) as User[]).map((row: User) => (
-                    <div className="flex items-center gap-4" key={row.user_id}>
+                  (Object.values(teamusers) as User[]).map((row: User) => {
+                    const invited = row.membership === 'invited';
+                    const label = [row.name, row.last].filter(Boolean).join(' ') || row.email;
+                    const inviteOnly = String(row.user_id || '').startsWith('invite:');
+                    return (
+                    <div className="flex items-start gap-4" key={row.user_id || row.email}>
                       <Avatar className="hidden h-9 w-9 sm:flex">
                         <AvatarImage src="/avatars/01.png" alt="Avatar" />
-                        <AvatarFallback>{row.name ? row.name.charAt(0) : ''}</AvatarFallback>
+                        <AvatarFallback>{label ? label.charAt(0).toUpperCase() : ''}</AvatarFallback>
                       </Avatar>
-                      <div className="grid gap-1">
-                        <p className="flex flex-row gap-4 text-sm group font-medium leading-none">
-                          <span>{row.name} {row.last}</span>
-                          
+                      <div className="grid min-w-0 flex-1 gap-2">
+                        <p className="flex flex-row flex-wrap items-center gap-2 text-sm group font-medium leading-none">
+                          <span>{label}</span>
+                          <Badge variant={invited ? 'secondary' : 'outline'}>
+                            {invited ? 'Invited' : 'Active'}
+                          </Badge>
+                          {inviteOnly ? null : (
                           <DialogDelete 
                             selectedKey='name' 
-                            selectedValue={row.name} 
+                            selectedValue={row.name || row.email} 
                             refreshUp={refreshAction}
                             title="Delete entity"
                             instructions={`Are you sure you want to remove this user from the team?`}
                             path={`${import.meta.env.VITE_API_URL}/_auth/teams/${teamdoc.team_id}/users/${row.user_id}`}
                             method='DELETE'
                           />
+                          )}
                         </p>
+                        {label === row.email ? null : (
                         <p className="text-sm text-muted-foreground">
-                          {row.email} <Badge variant="outline">user:{row.user_id}</Badge>
+                          {row.email}
                         </p>
+                        )}
+                        {invited ? (
+                          <InviteActions
+                            invite={row as InviteDocument}
+                            teamId={teamdoc.team_id}
+                            portfolioId={portfolioid}
+                            onUpdated={() => refreshAction()}
+                          />
+                        ) : null}
                       </div>
                       <div className="ml-auto font-medium hidden">
                         <DropdownMenu>
@@ -216,7 +239,8 @@ export default function TeamCard({teamdoc,portfolioid}: TeamCardProps) {
                         </DropdownMenu>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="text-xs text-muted-foreground">No Users</div>
                 )

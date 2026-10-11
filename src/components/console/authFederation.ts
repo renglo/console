@@ -7,6 +7,8 @@ export const INVITE_STORAGE_KEY = 'renglo_invite';
 export const AUTH_PROVIDER_STORAGE_KEY = 'renglo_auth_provider';
 export const PKCE_VERIFIER_STORAGE_KEY = 'renglo_pkce_verifier';
 export const OAUTH_NONCE_STORAGE_KEY = 'renglo_oauth_nonce';
+export const ACCOUNT_LINK_RETRY_KEY = 'renglo_account_link_retry';
+export const ACCOUNT_LINKED_MARKER = 'ACCOUNT_LINKED';
 
 export const NATIVE_PROVIDER = 'COGNITO';
 
@@ -98,6 +100,7 @@ export function buildAuthorizeUrl(input: {
   identityProvider: string;
   state: string;
   codeChallenge: string;
+  loginHint?: string;
 }): string {
   const host = input.domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const params = new URLSearchParams({
@@ -110,6 +113,10 @@ export function buildAuthorizeUrl(input: {
     code_challenge: input.codeChallenge,
     code_challenge_method: 'S256',
   });
+  const loginHint = (input.loginHint || '').trim();
+  if (loginHint) {
+    params.set('login_hint', loginHint);
+  }
   return `https://${host}/oauth2/authorize?${params.toString()}`;
 }
 
@@ -144,7 +151,9 @@ export async function beginFederatedSignIn(input: {
   domain: string;
   clientId: string;
   redirectUri: string;
+  loginHint?: string;
 }): Promise<string> {
+  input.storage.removeItem(ACCOUNT_LINK_RETRY_KEY);
   const invite = captureInvite(input.search, input.storage);
   const verifier = randomUrlSafe();
   const nonce = randomUrlSafe(16);
@@ -159,6 +168,7 @@ export async function beginFederatedSignIn(input: {
     identityProvider: input.provider.cognito_provider_name,
     state: encodeState(nonce, invite),
     codeChallenge: challenge,
+    loginHint: input.loginHint,
   });
 }
 
@@ -241,6 +251,54 @@ export async function exchangeAuthorizationCode(input: {
     AccessToken: payload.access_token,
     RefreshToken: payload.refresh_token,
   };
+}
+
+export function isAccountLinkedError(message: string): boolean {
+  return message.includes(ACCOUNT_LINKED_MARKER);
+}
+
+export function signInErrorMessage(message: string): string {
+  if (isAccountLinkedError(message)) {
+    return 'This sign-in is linked to your existing account. Choose it again from the login page.';
+  }
+  return message;
+}
+
+export async function maybeRetryLinkedAccount(input: {
+  error: string;
+  storage: KeyValueStore;
+  search: string;
+  domain: string;
+  clientId: string;
+  redirectUri: string;
+}): Promise<string | null> {
+  if (!isAccountLinkedError(input.error)) {
+    input.storage.removeItem(ACCOUNT_LINK_RETRY_KEY);
+    return null;
+  }
+  if (input.storage.getItem(ACCOUNT_LINK_RETRY_KEY) === '1') {
+    return null;
+  }
+  const providerName = input.storage.getItem(AUTH_PROVIDER_STORAGE_KEY);
+  if (!providerName || providerName === NATIVE_PROVIDER) {
+    return null;
+  }
+  const url = await beginFederatedSignIn({
+    provider: {
+      id: providerName,
+      name: providerName,
+      type: 'external',
+      cognito_provider_name: providerName,
+      display_name: providerName,
+    },
+    search: input.search,
+    storage: input.storage,
+    domain: input.domain,
+    clientId: input.clientId,
+    redirectUri: input.redirectUri,
+  });
+  input.storage.setItem(ACCOUNT_LINK_RETRY_KEY, '1');
+  return url;
 }
 
 export function takePkceVerifier(storage: KeyValueStore): string | null {

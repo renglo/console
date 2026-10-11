@@ -13,7 +13,8 @@ import {
 } from "lucide-react"
 
 import { useParams } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
+import { GlobalContext } from "@/components/console/global-context"
 
 import DialogPost from "@/components/console/dialog-post"
 import DialogProfileName from "@/components/console/dialog-profile-name"
@@ -43,7 +44,8 @@ interface TokenResponse {
 
 export default function Account() {
 
-  
+  const context = useContext(GlobalContext);
+  const loadTree = context?.loadTree;
   const [blueprint, setBlueprint] = useState<Blueprint>({ label: '' });
   const [refresh, setRefresh] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -122,6 +124,7 @@ export default function Account() {
           'Authorization': `Bearer ${sessionStorage.accessToken}`,
         },
       });
+      await loadTree?.();
       setRefreshed(true);
       setTimeout(() => setRefreshed(false), 2000); // Reset after 2 seconds
     } catch (err) { 

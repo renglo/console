@@ -69,7 +69,7 @@ export default function ExtensionsCard({
   );
 
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader className="pb-2">
         <CardDescription>
           @{extensiondoc.handle} id:{extensionId}
@@ -121,17 +121,20 @@ export default function ExtensionsCard({
           {extensiondoc.about} {extensiondoc.location}
         </div>
       </CardContent>
-      <CardFooter className={teamsdict ? "" : "hidden"}>
-        <div className="flex flex-col gap-2">
+      <CardFooter className={teamsdict ? "min-w-0" : "hidden"}>
+        <div className="flex w-full min-w-0 flex-col gap-2">
           <div className="border-t px-6 py-6 text-sm">
             <Badge variant="team">Teams</Badge> that have access to this extension{" "}
             <span className="font-semibold">({extensiondoc.name})</span>
           </div>
-          <table className="w-full border-collapse text-xs">
+          <div className="w-full min-w-0 overflow-x-auto">
+          <table className="w-max min-w-full border-collapse text-xs">
             <thead className="sticky top-0 z-10 bg-white">
               <tr>
-                <th className="border border-gray-300 p-2 text-left">TEAMS</th>
-                <th className="min-w-[9rem] border border-gray-300 p-2 text-left">
+                <th className="sticky left-0 z-20 w-40 min-w-40 border border-gray-300 bg-white p-2 text-left">
+                  TEAMS
+                </th>
+                <th className="sticky left-40 z-20 min-w-[9rem] border border-gray-300 bg-white p-2 text-left">
                   <span className="text-xxs">ROLES</span>
                 </th>
                 {orgEntries.length ? (
@@ -155,10 +158,10 @@ export default function ExtensionsCard({
               {teamsdict && Object.keys(teamsdict).length > 0 ? (
                 (Object.values(teamsdict) as Team[]).map((row: Team) => (
                   <tr key={row.team_id}>
-                    <td className="border border-gray-300 p-2 text-left align-middle">
+                    <td className="sticky left-0 z-10 w-40 min-w-40 border border-gray-300 bg-white p-2 text-left align-middle">
                       {row.name}
                     </td>
-                    <td className="border border-gray-300 p-2 text-left align-middle">
+                    <td className="sticky left-40 z-10 min-w-[9rem] border border-gray-300 bg-white p-2 text-left align-middle">
                       <TeamToolRoles
                         teamId={row.team_id}
                         teamName={row.name}
@@ -218,6 +221,7 @@ export default function ExtensionsCard({
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </CardFooter>
     </Card>

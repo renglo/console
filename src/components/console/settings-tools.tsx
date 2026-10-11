@@ -55,7 +55,10 @@ export default function SettingsTools() {
   if (!context) {
     throw new Error('No GlobalProvider');
   }
-  const { tree } = context as unknown as { tree: { portfolios: Record<string, Portfolio> } };
+  const { tree, loadTree } = context as unknown as {
+    tree: { portfolios: Record<string, Portfolio> };
+    loadTree: () => Promise<void>;
+  };
   console.log(tree);
 
 
@@ -121,7 +124,7 @@ export default function SettingsTools() {
           'Authorization': `Bearer ${sessionStorage.accessToken}`,
         },
       });
-  
+      await loadTree();
     } catch (err) { 
       console.log(err); // Log the error directly
     }

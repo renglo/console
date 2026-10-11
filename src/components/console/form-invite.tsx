@@ -1,6 +1,7 @@
-import { FormEvent } from 'react';
+import { FormEvent, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast"
+import InviteActions, { InviteDocument } from '@/components/console/invite-actions';
 
 interface FormPutProps {
     team_id: string;
@@ -11,32 +12,17 @@ interface FormPutProps {
 }
 
 
-export default function FormInvite({ team_id, portfolio_id, refreshUp, path, method }: FormPutProps) {  
-      
+export default function FormInvite({ team_id, portfolio_id, refreshUp, path, method }: FormPutProps) {
+    const { toast } = useToast();
+    const [invite, setInvite] = useState<InviteDocument | null>(null);
+    const [email, setEmail] = useState('');
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-        
-        event.preventDefault(); // Prevent default form submission
-        // Create a FormData object from the form
+        event.preventDefault();
         const formData = new FormData(event.currentTarget);
-        // Convert the FormData entries directly into a plain object
         const data = Object.fromEntries(formData.entries());
 
-        // Additional logic here
-
-        toast({
-        title: "You submitted the following invitation:",
-        description: (
-            <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-            <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-            </pre>
-        ),
-        });
-        console.log('Invitation Submitted')
-        console.log(data)
-
         try {
-            // Put the data to your server or API endpoint
             const response = await fetch(path, {
                 method: method,
                 headers: {
@@ -47,83 +33,67 @@ export default function FormInvite({ team_id, portfolio_id, refreshUp, path, met
             });
 
             const rs = await response.json();
-
-        
-            // Handle the response
-            if (response.ok) {
-
-                //loadTree();
+            if (response.ok && rs.document?.email) {
+                setEmail(String(rs.document.email));
+                setInvite(rs.document);
                 refreshUp();
-
-                console.log('Success');
-                console.log(rs.message);
                 toast({
-                title: "Success",
-                description: (
-                    <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-                    <code className="text-white">{rs.message}</code>
-                    </pre>
-                ),
+                    title: "Invitation is ready",
+                    description: "Copy the link, or send it by email.",
                 });
-                       
-
-            } else {
-                console.error('Error.');
-                toast({
-                title: "Error",
-                description: (
-                    <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-                    <code className="text-white">{rs.message}</code>
-                    </pre>
-                ),
-                });
+                return;
             }
+            toast({
+                title: "Invitation",
+                description: rs.message || "Could not create the invitation.",
+            });
         } catch (error) {
             console.error('Error:', error);
             toast({
-                title: "Error",
-                description: (
-                    <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-                    <code className="text-white">Error!</code>
-                    </pre>
-                ),
-                });
+                title: "Invitation",
+                description: "Could not create the invitation.",
+            });
         }
     };
 
-
-    // Toast
-    const { toast } = useToast();
-
-
+    if (invite) {
+        return (
+            <div className="flex flex-col gap-4">
+                <p className="text-sm">
+                    Invitation for <span className="font-medium">{email}</span> is ready.
+                </p>
+                <InviteActions
+                    invite={invite}
+                    teamId={team_id}
+                    portfolioId={String(portfolio_id)}
+                    onUpdated={(next) => {
+                        setInvite(next);
+                        refreshUp();
+                    }}
+                />
+                <Button type="button" variant="ghost" onClick={() => setInvite(null)}>
+                    Invite someone else
+                </Button>
+            </div>
+        );
+    }
 
     return (
         <form onSubmit={handleSubmit}>
             <div className="flex flex-col gap-4">
                 <label>e-mail</label>
-                <input 
-                    name="email" 
-                    type="text"
+                <input
+                    name="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                 />
-                <label>Team ID</label>
-                <input 
-                    name="team_id"
-                    type="text" 
-                    readOnly
-                    value={team_id}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                />
-                <label>Portfolio ID</label>
-                <input 
-                    name="portfolio_id"
-                    type="text" 
-                    readOnly
-                    value={portfolio_id}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                />
-                <Button>Send invite</Button>
-            </div>            
+                <input name="team_id" type="hidden" readOnly value={team_id} />
+                <input name="portfolio_id" type="hidden" readOnly value={portfolio_id} />
+                <Button>Create invitation</Button>
+            </div>
         </form>
     );
 }
