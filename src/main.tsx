@@ -12,6 +12,7 @@ import ErrorPage from './error-page.tsx'
 
 import {GlobalProvider} from "@/components/console/global-context"
 import AuthLogin from "@/components/console/authLogin"
+import AuthCallback from "@/components/console/authCallback"
 import AuthRegister from '@/components/console/authRegister';
 import AuthConfirm from "@/components/console/authConfirm"
 import AuthInvite from "@/components/console/authInvite"
@@ -69,6 +70,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path=":portfolio/:org/:tool/:section/:p1/:p2/:p3" element={isAuthenticated() ? <ToolRouter /> : <Navigate replace to="/login" />} />
           </Route>
           <Route path="/login" element={<AuthLogin />} />
+          <Route path="/callback" element={<AuthCallback />} />
           <Route path="/register" element={<AuthRegister />} />
           <Route path="/confirm" element={<AuthConfirm />} />
           <Route path="/forgot" element={<ForgotPassword />} />

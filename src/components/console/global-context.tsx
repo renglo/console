@@ -1,5 +1,6 @@
 // GlobalContext
 import React, { createContext, useState } from 'react';
+import { clearAuthSession } from '@/components/console/authFederation';
 
 
 // Define the shape of your context
@@ -122,7 +123,7 @@ export const GlobalProvider: React.FC<GlobalProviderProps> = ({ children }) => {
 
         if (Data?.error) {
           console.log('Error exists:', Data.error);
-          sessionStorage.clear();
+          clearAuthSession(sessionStorage);
           window.location.href = `/login`;
         }else{
           setTree(Data);

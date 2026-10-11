@@ -1,0 +1,34 @@
+{
+  "providers": [
+    {
+      "id": "cognito",
+      "name": "Email and Password",
+      "type": "native",
+      "cognito_provider_name": "COGNITO",
+      "enabled": true,
+      "display_name": "Email and password",
+      "icon": "mail",
+      "display_order": 0
+    },
+    {
+      "id": "google",
+      "name": "Google",
+      "type": "social",
+      "cognito_provider_name": "Google",
+      "enabled": true,
+      "display_name": "Continue with Google",
+      "icon": "google",
+      "display_order": 10
+    },
+    {
+      "id": "okta",
+      "name": "Okta",
+      "type": "oidc",
+      "cognito_provider_name": "Okta",
+      "enabled": true,
+      "display_name": "Continue with Okta",
+      "icon": "okta",
+      "display_order": 20
+    }
+  ]
+}

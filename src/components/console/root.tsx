@@ -1,5 +1,11 @@
 import { Outlet } from "react-router-dom";
 import {
+  AUTH_PROVIDER_STORAGE_KEY,
+  NATIVE_PROVIDER,
+  buildLogoutUrl,
+  clearAuthSession,
+} from "@/components/console/authFederation";
+import {
   Search,
   Settings,
   ArrowBigLeft,
@@ -69,7 +75,7 @@ export default function Root() {
   
   if (tree?.error) {
     console.log('Token Expired...');
-    sessionStorage.clear();
+    clearAuthSession(sessionStorage);
     window.location.href = `/login`;
   }
 
@@ -82,7 +88,18 @@ export default function Root() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    sessionStorage.clear();
+    const provider = sessionStorage.getItem(AUTH_PROVIDER_STORAGE_KEY);
+    const domain = import.meta.env.VITE_COGNITO_DOMAIN;
+    const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
+    clearAuthSession(sessionStorage);
+    if (provider && provider !== NATIVE_PROVIDER && domain && clientId) {
+      window.location.href = buildLogoutUrl({
+        domain,
+        clientId,
+        logoutUri: `${window.location.origin}/login`,
+      });
+      return;
+    }
     navigate('/login');
   };
 

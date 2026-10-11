@@ -12,6 +12,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "node --experimental-strip-types --test src/components/console/authFederation.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

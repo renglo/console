@@ -1,14 +1,37 @@
-import { useState } from 'react';
-    
+import { useEffect, useState } from 'react';
+
 import { signIn } from './authService';
 import { finishAuthenticatedSession } from './authSession';
 import { captions, wlBackgroundUrl } from '@/lib/branding';
+import referenceDocument from '@/auth/reference-providers.json';
+import {
+  beginFederatedSignIn,
+  captureInvite,
+  externalProviders,
+  notePasswordSignIn,
+  providersForLogin,
+  showPasswordForm,
+  type AuthProvider,
+} from './authFederation';
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useLocation, useNavigate } from 'react-router-dom';
 
+const referenceProviders = referenceDocument.providers as AuthProvider[];
+
+function ProviderMark({ icon }: { icon?: string }) {
+  const letter = (icon || 'id').slice(0, 1).toUpperCase();
+  return (
+    <span
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold"
+      aria-hidden="true"
+    >
+      {letter}
+    </span>
+  );
+}
 
 export default function AuthLogin() {
 
@@ -19,6 +42,34 @@ export default function AuthLogin() {
     const [email, setEmail] = useState(queryParams.get('email') ?? '');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [providers, setProviders] = useState<AuthProvider[]>([]);
+
+    useEffect(() => {
+      captureInvite(location.search, sessionStorage);
+      let cancelled = false;
+      const devFallback = import.meta.env.DEV || import.meta.env.VITE_DEV_MODE === 'true';
+      (async () => {
+        let apiProviders: AuthProvider[] | null = null;
+        try {
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/_auth/providers`);
+          if (response.ok) {
+            const body = await response.json();
+            apiProviders = Array.isArray(body.providers) ? body.providers : [];
+          }
+        } catch {
+          apiProviders = null;
+        }
+        if (!cancelled) {
+          setProviders(providersForLogin(apiProviders, {
+            devFallback,
+            reference: referenceProviders,
+          }));
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [location.search]);
 
     const handleSignIn = async (e: { preventDefault: () => void; }) => {
         e.preventDefault();
@@ -37,14 +88,40 @@ export default function AuthLogin() {
             return;
           }
 
+          notePasswordSignIn(sessionStorage);
           await finishAuthenticatedSession(result.tokens);
         } catch (err) {
           setError(`Sign in failed: ${err}`);
         }
       };
 
+    const handleProvider = async (provider: AuthProvider) => {
+      setError('');
+      const domain = import.meta.env.VITE_COGNITO_DOMAIN;
+      const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
+      if (!domain || !clientId) {
+        setError('Sign-in is not configured for this environment.');
+        return;
+      }
+      try {
+        const url = await beginFederatedSignIn({
+          provider,
+          search: location.search,
+          storage: sessionStorage,
+          domain,
+          clientId,
+          redirectUri: `${window.location.origin}/callback`,
+        });
+        window.location.assign(url);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Sign-in failed';
+        setError(message);
+      }
+    };
 
     const backgroundUrl = wlBackgroundUrl();
+    const federated = externalProviders(providers);
+    const passwordEnabled = showPasswordForm(providers);
 
     return (
         <div
@@ -63,6 +140,7 @@ export default function AuthLogin() {
                   </p>
               </div>
               <div className="grid gap-4">
+                  {passwordEnabled && (
                   <form onSubmit={handleSignIn} >
                       <div className="grid gap-2">
                       <Label htmlFor="email">Email</Label>
@@ -103,6 +181,27 @@ export default function AuthLogin() {
                       Login
                       </Button>
                   </form>
+                  )}
+                  {!passwordEnabled && error && (
+                    <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                      <p>{error}</p>
+                    </div>
+                  )}
+                  {federated.length > 0 && passwordEnabled && (
+                    <div className="text-center text-xs uppercase tracking-wide text-muted-foreground">or</div>
+                  )}
+                  {federated.map((provider) => (
+                    <Button
+                      key={provider.id}
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => { void handleProvider(provider); }}
+                    >
+                      <ProviderMark icon={provider.icon} />
+                      {provider.display_name}
+                    </Button>
+                  ))}
               </div>
               <div className="mt-4 text-center text-sm hidden">
                   Don&apos;t have an account?{" "}
