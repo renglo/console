@@ -51,6 +51,7 @@ import {GlobalContext} from "@/components/console/global-context"
 import { userInitialsFromSession, userThumbnailUrl, warmPortfolioThumbnailCache } from "@/lib/image-upload"
 import { wlLogoUrl } from "@/lib/branding"
 import { sortByName } from "@/lib/sort-entities"
+import PendingInvites from "@/components/console/pending-invites"
 
 import { useState, useEffect, useContext } from 'react';
 
@@ -386,6 +387,7 @@ export default function Root() {
           </DropdownMenu>
         </header>
         <div className="flex-1 min-h-0 overflow-auto">
+          <PendingInvites />
           {!tree ? (
             <div className="flex items-center justify-center h-full">
               <span className="text-muted-foreground">Could not load authorization tree for this user.</span>

@@ -33,9 +33,7 @@ export default function DialogInvite({ team_id, portfolio_id, refreshUp, path, m
 
   // Function to update the state
   const refreshAction = () => {
-      setOpen(false);
       refreshUp();
-      
   };
 
   return (
@@ -43,14 +41,14 @@ export default function DialogInvite({ team_id, portfolio_id, refreshUp, path, m
       <DialogTrigger asChild>
         <UserPlus className="h-5 w-5" />
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {instructions}
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="h-[300px] w-[375px] rounded-md border p-6" >
+        <ScrollArea className="max-h-[70vh] w-full rounded-md border p-6" >
           <FormInvite  
                 team_id={team_id} 
                 portfolio_id={portfolio_id}

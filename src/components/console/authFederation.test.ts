@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import referenceDocument from '../../auth/reference-providers.json' with { type: 'json' };
 import {
+  ACCOUNT_LINK_RETRY_KEY,
   AUTH_PROVIDER_STORAGE_KEY,
   INVITE_STORAGE_KEY,
   OAUTH_NONCE_STORAGE_KEY,
@@ -12,9 +13,11 @@ import {
   decodeState,
   encodeState,
   externalProviders,
+  maybeRetryLinkedAccount,
   notePasswordSignIn,
   providersForLogin,
   readOAuthReturn,
+  signInErrorMessage,
   type AuthProvider,
   type KeyValueStore,
 } from './authFederation.ts';
@@ -123,6 +126,54 @@ test('password sign-in and logout keep the invite id', () => {
   assert.equal(storage.getItem(INVITE_STORAGE_KEY), 'invite-uuid');
 });
 
+test('a linked account restarts the same provider once', async () => {
+  const storage = memoryStore({
+    [AUTH_PROVIDER_STORAGE_KEY]: 'Google',
+    [INVITE_STORAGE_KEY]: 'invite-uuid',
+  });
+  const url = await maybeRetryLinkedAccount({
+    error: 'PreSignUp failed with error ACCOUNT_LINKED.',
+    storage,
+    search: '?error=invalid_request',
+    domain: 'example.auth.us-east-1.amazoncognito.com',
+    clientId: 'client',
+    redirectUri: 'http://127.0.0.1:5174/callback',
+  });
+  assert.ok(url);
+  assert.equal(new URL(url || '').searchParams.get('identity_provider'), 'Google');
+  assert.equal(storage.getItem(ACCOUNT_LINK_RETRY_KEY), '1');
+  assert.equal(decodeState(new URL(url || '').searchParams.get('state') || '').invite, 'invite-uuid');
+
+  const second = await maybeRetryLinkedAccount({
+    error: 'PreSignUp failed with error ACCOUNT_LINKED.',
+    storage,
+    search: '',
+    domain: 'example.auth.us-east-1.amazoncognito.com',
+    clientId: 'client',
+    redirectUri: 'http://127.0.0.1:5174/callback',
+  });
+  assert.equal(second, null);
+  assert.equal(
+    signInErrorMessage('PreSignUp failed with error ACCOUNT_LINKED.'),
+    'This sign-in is linked to your existing account. Choose it again from the login page.',
+  );
+});
+
+test('a fresh provider click clears a previous link retry', async () => {
+  const storage = memoryStore({ [ACCOUNT_LINK_RETRY_KEY]: '1' });
+  const provider = reference.find((item) => item.cognito_provider_name === 'Google');
+  assert.ok(provider);
+  await beginFederatedSignIn({
+    provider,
+    search: '',
+    storage,
+    domain: 'example.auth.us-east-1.amazoncognito.com',
+    clientId: 'client',
+    redirectUri: 'http://127.0.0.1:5174/callback',
+  });
+  assert.equal(storage.getItem(ACCOUNT_LINK_RETRY_KEY), null);
+});
+
 test('authorize URL helper does not add an invite query parameter', () => {
   const url = buildAuthorizeUrl({
     domain: 'https://example.auth.us-east-1.amazoncognito.com',
@@ -134,4 +185,19 @@ test('authorize URL helper does not add an invite query parameter', () => {
   });
   assert.equal(new URL(url).searchParams.get('invite'), null);
   assert.equal(new URL(url).searchParams.get('identity_provider'), 'Google');
+  assert.equal(new URL(url).searchParams.get('login_hint'), null);
+});
+
+test('authorize URL can hint the invited email', () => {
+  const url = buildAuthorizeUrl({
+    domain: 'example.auth.us-east-1.amazoncognito.com',
+    clientId: 'client',
+    redirectUri: 'http://127.0.0.1:5174/callback',
+    identityProvider: 'Google',
+    state: encodeState('n', 'invite-code'),
+    codeChallenge: 'challenge',
+    loginHint: 'ada@example.com',
+  });
+  assert.equal(new URL(url).searchParams.get('login_hint'), 'ada@example.com');
+  assert.equal(new URL(url).searchParams.get('invite'), null);
 });

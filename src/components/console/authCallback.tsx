@@ -3,8 +3,11 @@ import { useEffect, useState } from 'react';
 import { persistAuthenticationResult } from './authService';
 import { finishAuthenticatedSession } from './authSession';
 import {
+  ACCOUNT_LINK_RETRY_KEY,
   exchangeAuthorizationCode,
+  maybeRetryLinkedAccount,
   readOAuthReturn,
+  signInErrorMessage,
   takePkceVerifier,
 } from './authFederation';
 import { Button } from '@/components/ui/button';
@@ -25,8 +28,30 @@ export default function AuthCallback() {
       storage: sessionStorage,
     });
     if (!returned.ok) {
-      exchangeStarted = false;
-      setError(returned.error);
+      const domain = import.meta.env.VITE_COGNITO_DOMAIN;
+      const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
+      const finishError = () => {
+        exchangeStarted = false;
+        setError(signInErrorMessage(returned.error));
+      };
+      if (!domain || !clientId) {
+        finishError();
+        return;
+      }
+      void maybeRetryLinkedAccount({
+        error: returned.error,
+        storage: sessionStorage,
+        search: window.location.search,
+        domain,
+        clientId,
+        redirectUri: `${window.location.origin}/callback`,
+      }).then((retryUrl) => {
+        if (retryUrl) {
+          window.location.replace(retryUrl);
+          return;
+        }
+        finishError();
+      });
       return;
     }
 
@@ -47,13 +72,14 @@ export default function AuthCallback() {
       verifier,
     })
       .then(async (tokens) => {
+        sessionStorage.removeItem(ACCOUNT_LINK_RETRY_KEY);
         persistAuthenticationResult(tokens);
         await finishAuthenticatedSession(tokens);
       })
       .catch((err: unknown) => {
         exchangeStarted = false;
         const message = err instanceof Error ? err.message : 'Sign-in failed';
-        setError(message);
+        setError(signInErrorMessage(message));
       });
   }, []);
 

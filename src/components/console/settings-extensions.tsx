@@ -117,7 +117,7 @@ export default function SettingsExtensions() {
   };
 
   return (
-          <div className="grid gap-6 overflow-y-auto max-h-[calc(100vh-180px)]">
+          <div className="grid min-w-0 gap-6 overflow-y-auto max-h-[calc(100vh-180px)]">
             <Card className="">
               <CardHeader>
                 <CardTitle>Extensions</CardTitle>
@@ -126,7 +126,7 @@ export default function SettingsExtensions() {
               </CardDescription>
               </CardHeader> 
             </Card>
-            <div className="grid gap-4 grid-cols-1">
+            <div className="grid min-w-0 gap-4 grid-cols-1">
             {
               (() => {
                 const rows = sortByName(

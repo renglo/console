@@ -18,10 +18,32 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useLocation } from 'react-router-dom';
 
-import { useState, FormEvent, useMemo } from 'react';
+import { useEffect, useState, FormEvent, useMemo } from 'react';
 import { completeNewPasswordChallenge, signIn } from './authService';
 import { finishAuthenticatedSession } from './authSession';
 import { inviteEmailSubjectHint, locales, wlLogoUrl } from '@/lib/branding';
+import referenceDocument from '@/auth/reference-providers.json';
+import {
+  beginFederatedSignIn,
+  externalProviders,
+  INVITE_STORAGE_KEY,
+  providersForLogin,
+  type AuthProvider,
+} from './authFederation';
+
+const referenceProviders = referenceDocument.providers as AuthProvider[];
+
+function ProviderMark({ icon }: { icon?: string }) {
+  const letter = (icon || 'id').slice(0, 1).toUpperCase();
+  return (
+    <span
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold"
+      aria-hidden="true"
+    >
+      {letter}
+    </span>
+  );
+}
 
 
 export default function AuthInvite() {
@@ -40,7 +62,9 @@ export default function AuthInvite() {
       : '';
 
   const [email, setEmail] = useState(queryParams.get('email') ?? '');
-  const [code, setCode] = useState(queryParams.get('code') ?? '');
+  const linkCode = queryParams.get('code') ?? '';
+  const openedFromLink = linkCode.length > 6;
+  const [code, setCode] = useState(linkCode);
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
   const [tempPassword, setTempPassword] = useState(loginTempPassword);
@@ -48,6 +72,72 @@ export default function AuthInvite() {
   const [confirmPass, setConfirmPass] = useState('');
 
   const [warning, setWarning] = useState('');
+  const [providers, setProviders] = useState<AuthProvider[] | null>(null);
+  const [showNative, setShowNative] = useState(false);
+
+  useEffect(() => {
+    if (linkCode) {
+      sessionStorage.setItem(INVITE_STORAGE_KEY, linkCode);
+    }
+  }, [linkCode]);
+
+  useEffect(() => {
+    if (isPasswordSetup) {
+      return undefined;
+    }
+    let cancelled = false;
+    const devFallback = import.meta.env.DEV || import.meta.env.VITE_DEV_MODE === 'true';
+    (async () => {
+      let apiProviders: AuthProvider[] | null = null;
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/_auth/providers`);
+        if (response.ok) {
+          const body = await response.json();
+          apiProviders = Array.isArray(body.providers) ? body.providers : [];
+        }
+      } catch {
+        apiProviders = null;
+      }
+      if (!cancelled) {
+        setProviders(providersForLogin(apiProviders, {
+          devFallback,
+          reference: referenceProviders,
+        }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPasswordSetup]);
+
+  const federated = providers ? externalProviders(providers) : [];
+
+  const handleProvider = async (provider: AuthProvider) => {
+    setWarning('');
+    if (linkCode) {
+      sessionStorage.setItem(INVITE_STORAGE_KEY, linkCode);
+    }
+    const domain = import.meta.env.VITE_COGNITO_DOMAIN;
+    const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
+    if (!domain || !clientId) {
+      setWarning('Sign-in is not configured for this environment.');
+      return;
+    }
+    try {
+      const url = await beginFederatedSignIn({
+        provider,
+        search: location.search,
+        storage: sessionStorage,
+        domain,
+        clientId,
+        redirectUri: `${window.location.origin}/callback`,
+        loginHint: email.trim(),
+      });
+      window.location.assign(url);
+    } catch (error) {
+      setWarning(error instanceof Error ? error.message : 'Sign-in failed');
+    }
+  };
 
   const handleTeamInviteSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -85,7 +175,7 @@ export default function AuthInvite() {
             ),
             });
 
-            alert("Account confirmed successfully!\nSign in on next page.");
+            alert("Account confirmed.\nSign in, then accept the invitation on your home page.");
             window.location.href = `/login?email=${encodeURIComponent(email)}`;
         } else {
             setWarning(rs.message || 'Invite could not be completed.');
@@ -167,7 +257,7 @@ export default function AuthInvite() {
       <CardHeader>
         <CardTitle className="text-xl">
             <div className="flex mb-6">
-            {isPasswordSetup ? 'Set up your account' : 'Access your new team'}
+            {isPasswordSetup ? 'Set up your account' : 'You have an invitation'}
             <img src={wlLogoUrl()} className="w-[40px] ml-auto" alt={locales.en.appName || "Logo"} />
             </div>
         </CardTitle>
@@ -179,10 +269,20 @@ export default function AuthInvite() {
                 Copy the temporary password exactly — do not include the period at the end of the sentence.
               </div>
             </>
+          ) : showNative || (providers !== null && federated.length === 0) ? (
+            <>
+              {openedFromLink ? (
+                <>Create a username and password for {email || 'your email'}.</>
+              ) : (
+                <>
+                  Enter the invitation code we sent to your email
+                  <div className="text-xs">(The message has the subject: &quot;{inviteEmailSubjectHint()}&quot;)</div>
+                </>
+              )}
+            </>
           ) : (
             <>
-              Enter the invitation code we sent to your email
-              <div className="text-xs">(The message has the subject: &quot;{inviteEmailSubjectHint()}&quot;)</div>
+              You were invited{email ? <> as {email}</> : null}. Sign in with that address, or create a username and password. After you sign in, accept the invitation to join the team.
             </>
           )}
         </CardDescription>
@@ -250,9 +350,39 @@ export default function AuthInvite() {
               </div>
             </div>
           </form>
+        ) : !showNative && (providers === null || federated.length > 0) ? (
+          <div className="grid gap-4">
+            {providers === null ? (
+              <p className="text-sm text-muted-foreground">Loading sign-in options…</p>
+            ) : (
+              federated.map((provider) => (
+                <Button
+                  key={provider.id}
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => { void handleProvider(provider); }}
+                >
+                  <ProviderMark icon={provider.icon} />
+                  {provider.display_name}
+                </Button>
+              ))
+            )}
+            {email ? (
+              <p className="text-xs text-muted-foreground">
+                Use {email}. A different address does not receive this invitation.
+              </p>
+            ) : null}
+            <div className="text-center text-xs uppercase tracking-wide text-muted-foreground">or</div>
+            <Button type="button" className="w-full" onClick={() => setShowNative(true)}>
+              Create a username and password
+            </Button>
+            {warning ? <div className="text-xs text-red-500">{warning}</div> : null}
+          </div>
         ) : (
           <form onSubmit={handleTeamInviteSubmit}>
             <div className="grid gap-4">
+                {openedFromLink ? null : (
                 <div className="grid grid-cols-2 gap-4">
                     <InputOTP
                         maxLength={6}
@@ -276,6 +406,7 @@ export default function AuthInvite() {
                         </InputOTPGroup>
                     </InputOTP>
                 </div>
+                )}
 
                 {nameFields}
 
@@ -303,8 +434,13 @@ export default function AuthInvite() {
                 </div>
                 <div className="text-xs text-red-500">{warning}</div>
                 <Button type="submit" className="w-full">
-                    Confirm
+                    Create account
                 </Button>
+                {federated.length > 0 ? (
+                  <Button type="button" variant="ghost" className="w-full" onClick={() => setShowNative(false)}>
+                    Use an identity provider instead
+                  </Button>
+                ) : null}
             </div>
           </form>
         )}
