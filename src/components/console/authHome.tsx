@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { clearAuthSession } from '@/components/console/authFederation';
 
 /*eslint-disable*/
 function parseJwt (token:any) {
@@ -26,7 +27,7 @@ const AuthHome = () => {
   
   
   const handleLogout = () => {
-    sessionStorage.clear();
+    clearAuthSession(sessionStorage);
     navigate('/login');
   };
 /*eslint-enable*/

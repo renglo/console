@@ -27,7 +27,7 @@ export type SignInResult =
   | { kind: "authenticated"; tokens: AuthenticationResultType }
   | NewPasswordChallenge;
 
-function storeAuthenticationResult(result: AuthenticationResultType) {
+export function persistAuthenticationResult(result: AuthenticationResultType) {
   sessionStorage.setItem("idToken", result.IdToken || "");
   sessionStorage.setItem("accessToken", result.AccessToken || "");
   sessionStorage.setItem("refreshToken", result.RefreshToken || "");
@@ -69,7 +69,7 @@ export const signIn = async (
   const response = await cognitoClient.send(command);
 
   if (response.AuthenticationResult) {
-    storeAuthenticationResult(response.AuthenticationResult);
+    persistAuthenticationResult(response.AuthenticationResult);
     return {
       kind: "authenticated",
       tokens: response.AuthenticationResult,
@@ -123,7 +123,7 @@ export const completeNewPasswordChallenge = async (
     throw new Error("Failed to set a new password.");
   }
 
-  storeAuthenticationResult(response.AuthenticationResult);
+  persistAuthenticationResult(response.AuthenticationResult);
   return response.AuthenticationResult;
 };
 
