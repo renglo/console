@@ -1,0 +1,306 @@
+.onboarding-funnel {
+  color: #252329;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.onboarding-funnel button,
+.onboarding-funnel input,
+.onboarding-funnel textarea {
+  font: inherit;
+}
+.onboarding-funnel button { cursor: pointer; }
+.onboarding-funnel .of-card {
+  background: rgba(255, 253, 250, 0.96);
+  border: 1px solid #e9e2da;
+  border-radius: 25px;
+  box-shadow: 0 18px 60px rgba(63, 45, 33, 0.08);
+  padding: 34px clamp(22px, 4vw, 56px) 36px;
+  min-height: 520px;
+  display: flex;
+  flex-direction: column;
+}
+.onboarding-funnel .of-progress-row { display: flex; justify-content: space-between; align-items: center; }
+.onboarding-funnel .of-eyebrow,
+.onboarding-funnel .of-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 10px;
+  font-weight: 700;
+  color: #a19a98;
+}
+.onboarding-funnel .of-text-button {
+  border: 0;
+  background: transparent;
+  color: #847c7d;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px;
+}
+.onboarding-funnel .of-text-button:hover { color: #252329; }
+.onboarding-funnel .of-track {
+  height: 3px;
+  border-radius: 9px;
+  margin: 15px 0 28px;
+  background: #eee9e4;
+  overflow: hidden;
+}
+.onboarding-funnel .of-track span {
+  height: 100%;
+  display: block;
+  background: #e97d5b;
+}
+.onboarding-funnel .of-kicker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #e37b5a;
+}
+.onboarding-funnel h1,
+.onboarding-funnel h2,
+.onboarding-funnel p { margin: 0; }
+.onboarding-funnel h1 {
+  margin-top: 14px;
+  font-size: clamp(36px, 5vw, 60px);
+  line-height: 0.96;
+  letter-spacing: -0.065em;
+  font-weight: 700;
+  color: #2b282d;
+}
+.onboarding-funnel h1 em { color: #e27756; font-style: normal; }
+.onboarding-funnel .of-lede {
+  color: #847b7b;
+  max-width: 430px;
+  line-height: 1.65;
+  font-size: 15px;
+  margin-top: 20px;
+}
+.onboarding-funnel .of-path-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 36px;
+}
+.onboarding-funnel .of-path-card {
+  text-align: left;
+  position: relative;
+  border-radius: 17px;
+  border: 1px solid transparent;
+  padding: 22px 24px 24px;
+  min-height: 188px;
+}
+.onboarding-funnel .of-path-card:hover { transform: translateY(-2px); }
+.onboarding-funnel .of-path-primary { background: #fae2d8; border-color: #f4d1c4; }
+.onboarding-funnel .of-path-secondary { background: #e8e4f4; border-color: #dbd5ed; }
+.onboarding-funnel .of-card-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+}
+.onboarding-funnel .of-peach { color: #cc674b; background: #fff2eb; }
+.onboarding-funnel .of-lavender { color: #6d5c99; background: #f7f5ff; }
+.onboarding-funnel .of-path-number {
+  position: absolute;
+  top: 27px;
+  right: 25px;
+  font-size: 10px;
+  color: rgba(48, 39, 43, 0.45);
+}
+.onboarding-funnel .of-path-title {
+  display: block;
+  margin-top: 22px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.onboarding-funnel .of-path-description {
+  display: block;
+  color: #766c6d;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 8px;
+  max-width: 235px;
+}
+.onboarding-funnel .of-path-arrow { position: absolute; right: 23px; bottom: 21px; color: #9a7168; }
+.onboarding-funnel .of-quiet {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  color: #aaa1a0;
+  font-size: 11px;
+  margin-top: 28px;
+}
+.onboarding-funnel .of-step { max-width: 650px; width: 100%; margin: 8px auto 0; }
+.onboarding-funnel .of-heading { display: flex; gap: 17px; align-items: flex-start; }
+.onboarding-funnel .of-step-icon {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  color: #e27756;
+  background: #fae3d8;
+}
+.onboarding-funnel h2 {
+  font-size: clamp(26px, 3vw, 36px);
+  letter-spacing: -0.055em;
+  line-height: 1.02;
+  color: #2b282d;
+  margin: 10px 0 12px;
+}
+.onboarding-funnel .of-heading p,
+.onboarding-funnel .of-complete p {
+  color: #847b7b;
+  line-height: 1.6;
+  font-size: 14px;
+  max-width: 460px;
+}
+.onboarding-funnel .of-form { display: grid; gap: 18px; margin-top: 28px; }
+.onboarding-funnel .of-field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  color: #4b4548;
+  font-size: 12px;
+  font-weight: 700;
+}
+.onboarding-funnel .of-field small { color: #aaa1a0; font-weight: 400; margin-left: 5px; }
+.onboarding-funnel .of-field input,
+.onboarding-funnel .of-field textarea,
+.onboarding-funnel .of-field select {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #e1dad5;
+  border-radius: 10px;
+  background: #fffdfa;
+  padding: 12px 14px;
+  color: #2b282d;
+  outline: none;
+  font-weight: 400;
+  font-size: 13px;
+}
+.onboarding-funnel .of-field input:focus,
+.onboarding-funnel .of-field textarea:focus {
+  border-color: #e38a6d;
+  box-shadow: 0 0 0 3px #fae6dd;
+}
+.onboarding-funnel fieldset { border: 0; padding: 0; margin: 0; }
+.onboarding-funnel .of-types { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.onboarding-funnel .of-type {
+  min-height: 52px;
+  border: 1px solid #e1dad5;
+  border-radius: 10px;
+  background: #fffdfa;
+  color: #716a6c;
+  font-size: 12px;
+  font-weight: 700;
+}
+.onboarding-funnel .of-type.selected { border-color: #e98b6d; color: #b75e44; background: #fff0e9; }
+.onboarding-funnel .of-tags {
+  border: 1px solid #e1dad5;
+  border-radius: 10px;
+  background: #fffdfa;
+  padding: 8px 10px;
+}
+.onboarding-funnel .of-tag-list { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.onboarding-funnel .of-tag-list input { border: 0; box-shadow: none; padding: 5px 3px; min-width: 120px; flex: 1; }
+.onboarding-funnel .of-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #f2eaf8;
+  color: #6d5c86;
+  font-weight: 600;
+  font-size: 11px;
+}
+.onboarding-funnel .of-tag button { border: 0; background: transparent; color: inherit; padding: 0; }
+.onboarding-funnel .of-actions {
+  border-top: 1px solid #eee8e3;
+  margin-top: 28px;
+  padding-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.onboarding-funnel .of-primary {
+  border: 0;
+  background: #2d2930;
+  color: white;
+  border-radius: 9px;
+  padding: 12px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  font-size: 12px;
+}
+.onboarding-funnel .of-primary:hover:not(:disabled) { background: #e27756; }
+.onboarding-funnel .of-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+.onboarding-funnel .of-choices { display: flex; flex-direction: column; gap: 8px; }
+.onboarding-funnel .of-choice {
+  text-align: left;
+  border: 1px solid #e1dad5;
+  border-radius: 10px;
+  background: #fffdfa;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2b282d;
+}
+.onboarding-funnel .of-choice.selected { border-color: #e98b6d; background: #fff0e9; }
+.onboarding-funnel .of-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.onboarding-funnel .of-chip {
+  border-radius: 999px;
+  background: #f6dfd1;
+  color: #6d4b3e;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+}
+.onboarding-funnel .of-setup { display: flex; flex-direction: column; gap: 10px; margin-top: 28px; }
+.onboarding-funnel .of-setup-item {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px;
+  border: 1px solid #ebe4df;
+  border-radius: 12px;
+  background: #fffdfa;
+}
+.onboarding-funnel .of-setup-item strong,
+.onboarding-funnel .of-setup-item small { display: block; }
+.onboarding-funnel .of-setup-item strong { font-size: 13px; }
+.onboarding-funnel .of-setup-item small { color: #948a8b; font-size: 11px; margin-top: 3px; }
+.onboarding-funnel .of-check { margin-left: auto; color: #77a581; }
+.onboarding-funnel .of-help { color: #a29a9a; font-size: 11px; margin-top: 12px; }
+.onboarding-funnel .of-error { color: #9b3d32; font-size: 13px; margin-top: 12px; }
+.onboarding-funnel .of-complete {
+  text-align: center;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  padding: 24px 0;
+}
+.onboarding-funnel .of-mark {
+  width: 70px;
+  height: 70px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  background: #dcebdd;
+  color: #5f966c;
+  margin-bottom: 20px;
+}
+@media (max-width: 720px) {
+  .onboarding-funnel .of-path-grid,
+  .onboarding-funnel .of-types { grid-template-columns: 1fr 1fr; }
+  .onboarding-funnel .of-card { border-radius: 19px; padding: 24px 18px 24px; }
+}

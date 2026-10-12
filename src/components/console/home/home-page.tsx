@@ -1,10 +1,12 @@
-import { useContext, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 
 import { GlobalContext } from '@/components/console/global-context';
 
 import { homePortfoliosFromTree, projectCount, type AuthTreePortfolios } from './home-model';
+import OnboardingFunnelDialog, { type FunnelPortfolio } from './onboarding-funnel-dialog';
+import { onboardingDismissed, rememberOnboardingDismiss } from './onboarding-funnel-session';
 import PortfolioSection from './portfolio-section';
 
 const ALL_PORTFOLIOS = 'all';
@@ -14,17 +16,42 @@ export default function HomePage() {
   if (!context) {
     throw new Error('No GlobalProvider');
   }
-  const { tree } = context as unknown as {
+  const { tree, loadTree } = context as unknown as {
     tree: { portfolios?: AuthTreePortfolios; preferences?: Record<string, string> };
+    loadTree?: () => void;
   };
 
   const [activeId, setActiveId] = useState(ALL_PORTFOLIOS);
   const [query, setQuery] = useState('');
+  const [funnelOpen, setFunnelOpen] = useState(false);
 
   const portfolios = useMemo(
     () => homePortfoliosFromTree(tree?.portfolios, tree?.preferences),
     [tree],
   );
+
+  const funnelPortfolios = useMemo<FunnelPortfolio[]>(() => {
+    return Object.values(tree?.portfolios || {})
+      .map((portfolio) => ({
+        id: portfolio.portfolio_id,
+        name: portfolio.name || portfolio.portfolio_id,
+        teamIds: Object.keys(portfolio.teams || {}),
+        orgs: Object.values(portfolio.orgs || {})
+          .filter((org) => org.org_id !== '_all' && org.active === true && org.name)
+          .map((org) => ({ id: org.org_id, name: org.name || org.org_id })),
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [tree]);
+
+  useEffect(() => {
+    if (!tree?.portfolios || portfolios.length > 0 || onboardingDismissed()) return;
+    setFunnelOpen(true);
+  }, [tree, portfolios.length]);
+
+  const closeFunnel = (next: boolean) => {
+    setFunnelOpen(next);
+    if (!next && portfolios.length === 0) rememberOnboardingDismiss();
+  };
 
   const totalProjects = portfolios.reduce((sum, portfolio) => sum + portfolio.orgs.length, 0);
 
@@ -61,11 +88,21 @@ export default function HomePage() {
     return (
       <div className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-10 sm:px-8">
         <span>
-          Go to account settings to install apps in your environment.{' '}
+          Start a project to set up your portfolio, or go to account settings.{' '}
+          <button type="button" className="underline" onClick={() => setFunnelOpen(true)}>
+            Start a project
+          </button>
+          {' · '}
           <NavLink to="/account" className="underline">
-            Click here
+            Account settings
           </NavLink>
         </span>
+        <OnboardingFunnelDialog
+          open={funnelOpen}
+          onOpenChange={closeFunnel}
+          portfolios={funnelPortfolios}
+          onFinished={() => loadTree?.()}
+        />
       </div>
     );
   }
@@ -85,6 +122,14 @@ export default function HomePage() {
                 className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </label>
+            <button
+              type="button"
+              onClick={() => setFunnelOpen(true)}
+              className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-foreground px-4 text-sm font-semibold text-background"
+            >
+              <Plus className="size-4" />
+              Start a project
+            </button>
             <span className="hidden text-xs text-muted-foreground sm:block">
               {projectCount(totalProjects)}
             </span>
@@ -120,6 +165,12 @@ export default function HomePage() {
           </div>
         )}
       </div>
+      <OnboardingFunnelDialog
+        open={funnelOpen}
+        onOpenChange={closeFunnel}
+        portfolios={funnelPortfolios}
+        onFinished={() => loadTree?.()}
+      />
     </main>
   );
 }

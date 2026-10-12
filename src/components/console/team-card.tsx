@@ -31,6 +31,7 @@ import { useState, useEffect } from 'react';
 //import OrgsCard from "@/components/console/orgs-card"
 import DialogInvite from '@/components/console/dialog-invite'
 import InviteActions, { InviteDocument } from '@/components/console/invite-actions'
+import TeamJoinCode from '@/components/console/team-join-code'
 import DialogPut from '@/components/console/dialog-put'
 import DialogDelete from '@/components/console/dialog-delete'
 import DialogDeleteText from '@/components/console/dialog-delete-text'
@@ -49,7 +50,7 @@ interface User {
   last: string;
   email: string;
   user_id: string;
-  membership?: 'active' | 'invited';
+  membership?: 'active' | 'invited' | 'access-requested';
   link?: string;
   expires_at?: number;
   expired?: boolean;
@@ -103,6 +104,22 @@ export default function TeamCard({teamdoc,portfolioid}: TeamCardProps) {
     setRefresh(prev => !prev); // Toggle the `refresh` state to trigger useEffect
     
 
+  };
+
+  const decideAccess = async (userId: string, action: 'approve' | 'reject') => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/_auth/teams/${teamdoc.team_id}/access/${userId}/${action}`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${sessionStorage.accessToken}` },
+        },
+      );
+      if (!response.ok) return;
+      refreshAction();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
 
@@ -168,13 +185,16 @@ export default function TeamCard({teamdoc,portfolioid}: TeamCardProps) {
                 />
 
               </div>
+              <TeamJoinCode teamId={teamdoc.team_id} />
 
               {
                 teamusers && Object.keys(teamusers).length > 0 ? (
                   (Object.values(teamusers) as User[]).map((row: User) => {
                     const invited = row.membership === 'invited';
+                    const requested = row.membership === 'access-requested';
                     const label = [row.name, row.last].filter(Boolean).join(' ') || row.email;
                     const inviteOnly = String(row.user_id || '').startsWith('invite:');
+                    const badge = requested ? 'Access requested' : invited ? 'Invited' : 'Active';
                     return (
                     <div className="flex items-start gap-4" key={row.user_id || row.email}>
                       <Avatar className="hidden h-9 w-9 sm:flex">
@@ -184,10 +204,10 @@ export default function TeamCard({teamdoc,portfolioid}: TeamCardProps) {
                       <div className="grid min-w-0 flex-1 gap-2">
                         <p className="flex flex-row flex-wrap items-center gap-2 text-sm group font-medium leading-none">
                           <span>{label}</span>
-                          <Badge variant={invited ? 'secondary' : 'outline'}>
-                            {invited ? 'Invited' : 'Active'}
+                          <Badge variant={invited || requested ? 'secondary' : 'outline'}>
+                            {badge}
                           </Badge>
-                          {inviteOnly ? null : (
+                          {inviteOnly || requested ? null : (
                           <DialogDelete 
                             selectedKey='name' 
                             selectedValue={row.name || row.email} 
@@ -204,6 +224,25 @@ export default function TeamCard({teamdoc,portfolioid}: TeamCardProps) {
                           {row.email}
                         </p>
                         )}
+                        {requested ? (
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => decideAccess(row.user_id, 'approve')}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => decideAccess(row.user_id, 'reject')}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        ) : null}
                         {invited ? (
                           <InviteActions
                             invite={row as InviteDocument}
