@@ -243,6 +243,42 @@
 }
 .onboarding-funnel .of-primary:hover:not(:disabled) { background: #e27756; }
 .onboarding-funnel .of-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+.onboarding-funnel .of-portfolio-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+.onboarding-funnel .of-mode-toggle {
+  min-height: 72px;
+  border: 1px solid #e1dad5;
+  border-radius: 12px;
+  background: #fffdfa;
+  color: #716a6c;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  padding: 12px 10px;
+  text-align: center;
+}
+.onboarding-funnel .of-mode-toggle.selected {
+  border-color: #e98b6d;
+  color: #b75e44;
+  background: #fff0e9;
+}
+.onboarding-funnel .of-mode-toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.onboarding-funnel .of-portfolio-step {
+  display: block;
+  margin-top: 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a19a98;
+}
 .onboarding-funnel .of-choices { display: flex; flex-direction: column; gap: 8px; }
 .onboarding-funnel .of-choice {
   text-align: left;
