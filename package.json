@@ -4,7 +4,7 @@
   "private": false,
   "version": "0.0.14",
   "renglo": {
-    "platform": "0.1.7"
+    "platform": "0.1.8"
   },
   "license": "MIT",
   "type": "module",
