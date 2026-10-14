@@ -1,9 +1,6 @@
 import { rowsToTags, type TagRow } from '@/lib/entity-tags';
 import { orgIdFromCreateResponse, uploadOrgThumbnail } from '@/lib/org-project-api';
 
-export const PROJECT_TYPES = ['Movie', 'TV', 'Commercial', 'Videos', 'Other'] as const;
-export type ProjectType = (typeof PROJECT_TYPES)[number];
-
 export const PROJECT_EXTENSIONS = [
   'breakdown',
   'elements',
@@ -19,7 +16,7 @@ export type PortfolioChoice =
 
 export type NewProjectDraft = {
   projectName: string;
-  projectType: ProjectType;
+  projectType: string;
   description: string;
   tags: string[];
   thumbnail: File | null;
@@ -198,7 +195,9 @@ export async function runNewProject(
   if (!progress.orgId) {
     report('Creating the project');
     const tagRows: TagRow[] = [
-      { id: 'type', key: 'type', value: draft.projectType },
+      ...(draft.projectType.trim()
+        ? [{ id: 'type', key: 'type', value: draft.projectType.trim() }]
+        : []),
       ...draft.tags.map((value, index) => ({ id: `tag-${index}`, key: 'tag', value })),
     ];
     const created = await authFetch(`/_auth/orgs/${portfolioId}`, 'POST', {

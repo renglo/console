@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
 
 import { GlobalContext } from '@/components/console/global-context';
+import { caption } from '@/lib/messages';
 
 import { homePortfoliosFromTree, projectCount, type AuthTreePortfolios } from './home-model';
 import OnboardingFunnelDialog, { type FunnelPortfolio } from './onboarding-funnel-dialog';
@@ -88,13 +89,13 @@ export default function HomePage() {
     return (
       <div className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-10 sm:px-8">
         <span>
-          Start a project to set up your portfolio, or go to account settings.{' '}
+          {caption('home.empty')}{' '}
           <button type="button" className="underline" onClick={() => setFunnelOpen(true)}>
-            Start a project
+            {caption('home.new')}
           </button>
           {' · '}
           <NavLink to="/account" className="underline">
-            Account settings
+            {caption('home.accountSettings')}
           </NavLink>
         </span>
         <OnboardingFunnelDialog
@@ -128,7 +129,7 @@ export default function HomePage() {
               className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-foreground px-4 text-sm font-semibold text-background"
             >
               <Plus className="size-4" />
-              Start a project
+              {caption('home.new')}
             </button>
             <span className="hidden text-xs text-muted-foreground sm:block">
               {projectCount(totalProjects)}
