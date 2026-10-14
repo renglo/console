@@ -1,3 +1,5 @@
+import { fallbackMessages } from "./fallback-messages";
+
 /** Used when no tenant white-label pack is installed in node_modules. */
 export const smallLogo = "";
 export const largeLogo = "";
@@ -26,5 +28,6 @@ export const locales = {
         link: "Follow this link:",
       },
     },
+    ...fallbackMessages,
   },
 };

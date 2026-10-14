@@ -3,28 +3,25 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Clapperboard,
   FileKey2,
   FolderPlus,
   Layers3,
   Link2,
   MailPlus,
-  Sparkles,
   Users,
   X,
 } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { caption, captionList } from '@/lib/messages';
 
 import './onboarding-funnel.css';
 import {
   PROJECT_EXTENSIONS,
-  PROJECT_TYPES,
   parseGuestEmails,
   runNewProject,
   type NewProjectDraft,
   type PortfolioChoice,
-  type ProjectType,
   type SetupProgress,
   type SetupResult,
 } from './run-new-project';
@@ -49,17 +46,18 @@ export default function OnboardingFunnelDialog({
   portfolios,
   onFinished,
 }: OnboardingFunnelDialogProps) {
+  const projectTypes = captionList('onboarding.entity.types');
   const [path, setPath] = useState<'new' | 'existing' | null>(null);
   const [step, setStep] = useState(1);
   const [projectName, setProjectName] = useState('');
-  const [projectType, setProjectType] = useState<ProjectType>('Movie');
+  const [projectType, setProjectType] = useState(projectTypes[0] ?? '');
   const [description, setDescription] = useState('');
   const [tag, setTag] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [thumbnail, setThumbnail] = useState<File | null>(null);
   const [portfolioMode, setPortfolioMode] = useState<'existing' | 'new'>('new');
   const [portfolioId, setPortfolioId] = useState('');
-  const [portfolioName, setPortfolioName] = useState('Movie');
+  const [portfolioName, setPortfolioName] = useState(projectTypes[0] ?? '');
   const [portfolioNameEdited, setPortfolioNameEdited] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [emails, setEmails] = useState('');
@@ -72,7 +70,14 @@ export default function OnboardingFunnelDialog({
   const [joinDetail, setJoinDetail] = useState('');
 
   const totalSteps = path === 'new' ? 3 : 1;
-  const eyebrow = !path ? 'Welcome' : step > totalSteps ? 'All set' : `Step ${step} of ${totalSteps}`;
+  const eyebrow = !path
+    ? caption('onboarding.welcome')
+    : step > totalSteps
+      ? caption('onboarding.doneLabel')
+      : caption('onboarding.step', { step: String(step), total: String(totalSteps) });
+  const startTitle = splitColoredTitle(caption('onboarding.start.title'));
+  const startKicker = caption('onboarding.start.kicker');
+  const dialogTitle = startTitle.accent ? `${startTitle.lead} ${startTitle.accent}` : startTitle.lead;
   const selectedPortfolio = portfolios.find((portfolio) => portfolio.id === portfolioId);
 
   const portfolioChoice: PortfolioChoice = useMemo(() => {
@@ -83,10 +88,10 @@ export default function OnboardingFunnelDialog({
         portfolioName: selectedPortfolio.name,
       };
     }
-    return { mode: 'new', portfolioName: portfolioName.trim() || projectType };
-  }, [portfolioMode, portfolioName, projectType, selectedPortfolio]);
+    return { mode: 'new', portfolioName: portfolioName.trim() };
+  }, [portfolioMode, portfolioName, selectedPortfolio]);
 
-  const chooseType = (next: ProjectType) => {
+  const chooseType = (next: string) => {
     setProjectType(next);
     if (!portfolioNameEdited) setPortfolioName(next);
   };
@@ -141,7 +146,7 @@ export default function OnboardingFunnelDialog({
       setStep(4);
       onFinished();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'The setup could not be completed.');
+      setError(caught instanceof Error ? caught.message : caption('onboarding.errors.setup'));
     } finally {
       setBusy(false);
     }
@@ -161,18 +166,22 @@ export default function OnboardingFunnelDialog({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload.success === false) {
-        throw new Error(payload.message || 'That invitation token is not valid.');
+        throw new Error(payload.message || caption('onboarding.errors.token'));
       }
       const document = payload.document || {};
       const place = [document.portfolio_name, document.team_name].filter(Boolean).join(' / ');
       setJoinDetail(
         document.status === 'member'
-          ? `You are already on ${place || 'this team'}.`
-          : `Access requested${place ? ` for ${place}` : ''}. A teammate still needs to approve you.`,
+          ? caption('onboarding.join.already', {
+              place: place || caption('onboarding.join.thisTeam'),
+            })
+          : caption('onboarding.join.requested', {
+              place: place ? caption('onboarding.join.forPlace', { place }) : '',
+            }),
       );
       setStep(2);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'That invitation token is not valid.');
+      setError(caught instanceof Error ? caught.message : caption('onboarding.errors.token'));
     } finally {
       setBusy(false);
     }
@@ -181,67 +190,72 @@ export default function OnboardingFunnelDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="onboarding-funnel w-[min(960px,calc(100vw-1.5rem))] max-w-[960px] gap-0 border-0 bg-transparent p-0 shadow-none sm:rounded-none [&>button]:text-[#6f6970]">
-        <DialogTitle className="sr-only">Where should we start?</DialogTitle>
+        <DialogTitle className="sr-only">{dialogTitle}</DialogTitle>
         <section className="of-card" aria-labelledby="onboarding-title">
           <div className="of-progress-row">
             <div className="of-eyebrow">{eyebrow}</div>
             {path && (
               <button type="button" className="of-text-button" onClick={reset}>
-                <X size={14} /> Start over
+                <X size={14} /> {caption('onboarding.startOver')}
               </button>
             )}
           </div>
           {path && step <= totalSteps && (
-            <div className="of-track" aria-label={`Step ${step} of ${totalSteps}`}>
+            <div className="of-track" aria-label={caption('onboarding.step', { step: String(step), total: String(totalSteps) })}>
               <span style={{ width: `${(Math.min(step, totalSteps) / totalSteps) * 100}%` }} />
             </div>
           )}
 
           {!path && (
             <div>
-              <div className="of-kicker"><Sparkles size={15} /> Let's make something</div>
-              <h1 id="onboarding-title">Where should we<br /><em>start?</em></h1>
-              <p className="of-lede">Every great project has a first frame. Choose how you'd like to join the story.</p>
+              {startKicker ? <div className="of-kicker">{startKicker}</div> : null}
+              <h1 id="onboarding-title">
+                {startTitle.lead}
+                {startTitle.accent ? <><br /><em>{startTitle.accent}</em></> : null}
+              </h1>
+              <p className="of-lede">{caption('onboarding.start.lede')}</p>
               <div className="of-path-grid">
                 <button type="button" className="of-path-card of-path-primary" onClick={() => { setPath('new'); setStep(1); }}>
                   <span className="of-card-icon of-peach"><FolderPlus size={18} /></span>
                   <span className="of-path-number">01</span>
-                  <span className="of-path-title">Create a new project</span>
-                  <span className="of-path-description">Set up your portfolio, connect your team, and get moving.</span>
+                  <span className="of-path-title">{caption('onboarding.start.createTitle')}</span>
+                  <span className="of-path-description">{caption('onboarding.start.createDescription')}</span>
                   <span className="of-path-arrow"><ArrowRight size={16} /></span>
                 </button>
                 <button type="button" className="of-path-card of-path-secondary" onClick={() => { setPath('existing'); setStep(1); }}>
                   <span className="of-card-icon of-lavender"><Link2 size={18} /></span>
                   <span className="of-path-number">02</span>
-                  <span className="of-path-title">Join an existing project</span>
-                  <span className="of-path-description">Have an invitation token? Pick up right where your team left off.</span>
+                  <span className="of-path-title">{caption('onboarding.start.joinTitle')}</span>
+                  <span className="of-path-description">{caption('onboarding.start.joinDescription')}</span>
                   <span className="of-path-arrow"><ArrowRight size={16} /></span>
                 </button>
               </div>
-              <p className="of-quiet"><Clapperboard size={15} /> You can always invite people and add details later.</p>
+              <p className="of-quiet">{caption('onboarding.start.note')}</p>
             </div>
           )}
 
           {path === 'new' && step === 1 && (
             <div className="of-step">
-              <StepHeading icon={<FolderPlus size={18} />} label="A fresh canvas" title="Tell us about your project" description="This is the home base for your team. Nothing is created until you finish setup." />
+              <StepHeading icon={<FolderPlus size={18} />} label={caption('onboarding.entity.label')} title={caption('onboarding.entity.title')} description={caption('onboarding.entity.description')} />
               <div className="of-form">
                 <label className="of-field">
-                  <span>Project name</span>
-                  <input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="e.g. The Long Way Home" />
+                  <span>{caption('onboarding.entity.name')}</span>
+                  <input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder={caption('onboarding.entity.namePlaceholder')} />
                 </label>
-                <fieldset className="of-field">
-                  <legend>What are you making?</legend>
-                  <div className="of-types">
-                    {PROJECT_TYPES.map((type) => (
-                      <button type="button" key={type} className={`of-type ${projectType === type ? 'selected' : ''}`} onClick={() => chooseType(type)}>
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
+                {projectTypes.length > 0 && (
+                  <fieldset className="of-field">
+                    <legend>{caption('onboarding.entity.making')}</legend>
+                    <div className="of-types">
+                      {projectTypes.map((type) => (
+                        <button type="button" key={type} className={`of-type ${projectType === type ? 'selected' : ''}`} onClick={() => chooseType(type)}>
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                )}
                 <label className="of-field">
-                  <span>Portfolio</span>
+                  <span>{caption('onboarding.entity.portfolio')}</span>
                   <div className="of-choices">
                     {portfolios.map((portfolio) => (
                       <button
@@ -258,18 +272,18 @@ export default function OnboardingFunnelDialog({
                       className={`of-choice ${portfolioMode === 'new' ? 'selected' : ''}`}
                       onClick={() => setPortfolioMode('new')}
                     >
-                      Create a new portfolio
+                      {caption('onboarding.entity.newPortfolio')}
                     </button>
                   </div>
                   {portfolioMode === 'new' && (
                     <input
                       value={portfolioName}
                       onChange={(event) => { setPortfolioNameEdited(true); setPortfolioName(event.target.value); }}
-                      placeholder="Portfolio name"
+                      placeholder={caption('onboarding.entity.portfolioPlaceholder')}
                     />
                   )}
                   <button type="button" className="of-text-button" onClick={() => setShowProjects((current) => !current)}>
-                    Show existing projects
+                    {caption('onboarding.entity.showExisting')}
                   </button>
                   {showProjects && (
                     <div className="of-chips">
@@ -277,24 +291,24 @@ export default function OnboardingFunnelDialog({
                         <span className="of-chip" key={org.id}>{org.name}</span>
                       ))}
                       {portfolioMode === 'existing' && (selectedPortfolio?.orgs.length || 0) === 0 && (
-                        <span className="of-help">No projects in this portfolio yet.</span>
+                        <span className="of-help">{caption('onboarding.entity.noneInPortfolio')}</span>
                       )}
-                      {portfolioMode === 'new' && <span className="of-help">A new portfolio starts without existing projects.</span>}
+                      {portfolioMode === 'new' && <span className="of-help">{caption('onboarding.entity.newPortfolioEmpty')}</span>}
                     </div>
                   )}
                 </label>
                 <label className="of-field">
-                  <span>Description <small>Optional</small></span>
-                  <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="A sentence or two about what you're making..." rows={3} />
+                  <span>{caption('onboarding.entity.descriptionLabel')} <small>{caption('onboarding.entity.optional')}</small></span>
+                  <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder={caption('onboarding.entity.descriptionPlaceholder')} rows={3} />
                 </label>
                 <div className="of-field">
-                  <span>Tags <small>Optional</small></span>
+                  <span>{caption('onboarding.entity.tags')} <small>{caption('onboarding.entity.optional')}</small></span>
                   <div className="of-tags">
                     <div className="of-tag-list">
                       {tags.map((item) => (
                         <span className="of-tag" key={item}>
                           {item}
-                          <button type="button" aria-label={`Remove ${item}`} onClick={() => setTags(tags.filter((entry) => entry !== item))}><X size={12} /></button>
+                          <button type="button" aria-label={caption('onboarding.entity.removeTag', { item })} onClick={() => setTags(tags.filter((entry) => entry !== item))}><X size={12} /></button>
                         </span>
                       ))}
                       <input
@@ -302,13 +316,13 @@ export default function OnboardingFunnelDialog({
                         onChange={(event) => setTag(event.target.value)}
                         onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addTag(); } }}
                         onBlur={addTag}
-                        placeholder={tags.length ? 'Add another' : 'e.g. documentary'}
+                        placeholder={tags.length ? caption('onboarding.entity.addAnother') : caption('onboarding.entity.tagPlaceholder')}
                       />
                     </div>
                   </div>
                 </div>
                 <label className="of-field">
-                  <span>Thumbnail <small>Optional</small></span>
+                  <span>{caption('onboarding.entity.thumbnail')} <small>{caption('onboarding.entity.optional')}</small></span>
                   <input
                     type="file"
                     accept="image/jpeg,image/png"
@@ -317,41 +331,41 @@ export default function OnboardingFunnelDialog({
                 </label>
               </div>
               <div className="of-actions">
-                <button type="button" className="of-text-button" onClick={() => setPath(null)}><ArrowLeft size={16} /> Back</button>
-                <button type="button" className="of-primary" disabled={!stepOneReady} onClick={() => setStep(2)}>Save & continue <ArrowRight size={16} /></button>
+                <button type="button" className="of-text-button" onClick={() => setPath(null)}><ArrowLeft size={16} /> {caption('onboarding.entity.back')}</button>
+                <button type="button" className="of-primary" disabled={!stepOneReady} onClick={() => setStep(2)}>{caption('onboarding.entity.continue')} <ArrowRight size={16} /></button>
               </div>
             </div>
           )}
 
           {path === 'new' && step === 2 && (
             <div className="of-step">
-              <StepHeading icon={<Layers3 size={18} />} label="A little magic" title="Your project, all connected" description="We'll set this up when you finish. Nothing is saved yet." />
+              <StepHeading icon={<Layers3 size={18} />} label={caption('onboarding.review.label')} title={caption('onboarding.review.title')} description={caption('onboarding.review.description')} />
               <div className="of-setup">
-                <SetupItem title={`${portfolioChoice.portfolioName} workspace`} detail={`${projectType} project: ${projectName || 'Untitled'}`} />
-                <SetupItem title="Extensions" detail={PROJECT_EXTENSIONS.join(', ')} />
-                <SetupItem title="Teams" detail={`${portfolioChoice.portfolioName} Admin and ${portfolioChoice.portfolioName} Staff`} />
+                <SetupItem title={caption('onboarding.review.workspace', { portfolio: portfolioChoice.portfolioName })} detail={caption('onboarding.review.detail', { type: projectType, name: projectName || caption('onboarding.review.untitled') })} />
+                <SetupItem title={caption('onboarding.review.extensions')} detail={PROJECT_EXTENSIONS.join(', ')} />
+                <SetupItem title={caption('onboarding.review.teams')} detail={caption('onboarding.review.teamsDetail', { portfolio: portfolioChoice.portfolioName })} />
               </div>
               <div className="of-actions">
-                <button type="button" className="of-text-button" onClick={() => setStep(1)}><ArrowLeft size={16} /> Back</button>
-                <button type="button" className="of-primary" onClick={() => setStep(3)}>Looks good <ArrowRight size={16} /></button>
+                <button type="button" className="of-text-button" onClick={() => setStep(1)}><ArrowLeft size={16} /> {caption('onboarding.entity.back')}</button>
+                <button type="button" className="of-primary" onClick={() => setStep(3)}>{caption('onboarding.review.continue')} <ArrowRight size={16} /></button>
               </div>
             </div>
           )}
 
           {path === 'new' && step === 3 && (
             <div className="of-step">
-              <StepHeading icon={<MailPlus size={18} />} label="Bring your people" title="Invite your collaborators" description="Add teammates now, or leave this blank. They are invited to Staff when setup finishes." />
+              <StepHeading icon={<MailPlus size={18} />} label={caption('onboarding.invite.label')} title={caption('onboarding.invite.title')} description={caption('onboarding.invite.description')} />
               <label className="of-field">
-                <span>Email addresses <small>Separate with commas</small></span>
-                <textarea value={emails} onChange={(event) => setEmails(event.target.value)} placeholder="alex@example.com, sam@example.com" rows={4} />
+                <span>{caption('onboarding.invite.emails')} <small>{caption('onboarding.invite.emailsHint')}</small></span>
+                <textarea value={emails} onChange={(event) => setEmails(event.target.value)} placeholder={caption('onboarding.invite.emailsPlaceholder')} rows={4} />
               </label>
-              <p className="of-help">You can add more people from your project settings.</p>
+              <p className="of-help">{caption('onboarding.invite.later')}</p>
               {statusLabel && <p className="of-help">{statusLabel}</p>}
               {error && <p className="of-error">{error}</p>}
               <div className="of-actions">
-                <button type="button" className="of-text-button" onClick={() => setStep(2)} disabled={busy}><ArrowLeft size={16} /> Back</button>
+                <button type="button" className="of-text-button" onClick={() => setStep(2)} disabled={busy}><ArrowLeft size={16} /> {caption('onboarding.entity.back')}</button>
                 <button type="button" className="of-primary" onClick={finish} disabled={busy}>
-                  {busy ? 'Setting up…' : progress ? 'Retry setup' : 'Finish setup'} <Check size={16} />
+                  {busy ? caption('onboarding.invite.working') : progress ? caption('onboarding.invite.retry') : caption('onboarding.invite.finish')} <Check size={16} />
                 </button>
               </div>
             </div>
@@ -360,29 +374,29 @@ export default function OnboardingFunnelDialog({
           {path === 'new' && step === 4 && result && (
             <div className="of-complete">
               <div className="of-mark"><Check /></div>
-              <div className="of-kicker">All set</div>
-              <h2>Your studio is ready.</h2>
-              <p>{result.projectName} is ready for its first frame.</p>
+              <div className="of-kicker">{caption('onboarding.complete.label')}</div>
+              <h2>{caption('onboarding.complete.title')}</h2>
+              <p>{caption('onboarding.complete.ready', { name: result.projectName })}</p>
               {result.invitesSkipped && (
-                <p>Collaborator invites were not sent because you are not on the Staff team.</p>
+                <p>{caption('onboarding.complete.invitesSkipped')}</p>
               )}
-              <button type="button" className="of-primary" onClick={() => onOpenChange(false)}>Go to your projects <ArrowRight size={16} /></button>
+              <button type="button" className="of-primary" onClick={() => onOpenChange(false)}>{caption('onboarding.complete.go')} <ArrowRight size={16} /></button>
             </div>
           )}
 
           {path === 'existing' && step === 1 && (
             <div className="of-step">
-              <StepHeading icon={<FileKey2 size={18} />} label="You've got an invite" title="Enter your invitation token" description="Paste the open token from the team. Your request waits for someone on that team to approve it." />
+              <StepHeading icon={<FileKey2 size={18} />} label={caption('onboarding.join.label')} title={caption('onboarding.join.title')} description={caption('onboarding.join.description')} />
               <label className="of-field">
-                <span>Invitation token</span>
-                <input value={token} onChange={(event) => setToken(event.target.value)} placeholder="e.g. FRM-8H2K-91QD" />
+                <span>{caption('onboarding.join.token')}</span>
+                <input value={token} onChange={(event) => setToken(event.target.value)} placeholder={caption('onboarding.join.tokenPlaceholder')} />
               </label>
-              <p className="of-help">Tokens are case-insensitive and usually look like FRM-8H2K-91QD.</p>
+              <p className="of-help">{caption('onboarding.join.tokenHelp')}</p>
               {error && <p className="of-error">{error}</p>}
               <div className="of-actions">
-                <button type="button" className="of-text-button" onClick={() => setPath(null)} disabled={busy}><ArrowLeft size={16} /> Back</button>
+                <button type="button" className="of-text-button" onClick={() => setPath(null)} disabled={busy}><ArrowLeft size={16} /> {caption('onboarding.entity.back')}</button>
                 <button type="button" className="of-primary" disabled={!token.trim() || busy} onClick={join}>
-                  {busy ? 'Requesting…' : 'Join project'} <ArrowRight size={16} />
+                  {busy ? caption('onboarding.join.working') : caption('onboarding.join.submit')} <ArrowRight size={16} />
                 </button>
               </div>
             </div>
@@ -391,16 +405,26 @@ export default function OnboardingFunnelDialog({
           {path === 'existing' && step === 2 && (
             <div className="of-complete">
               <div className="of-mark"><Check /></div>
-              <div className="of-kicker">All set</div>
-              <h2>Access requested.</h2>
+              <div className="of-kicker">{caption('onboarding.doneLabel')}</div>
+              <h2>{caption('onboarding.join.doneTitle')}</h2>
               <p>{joinDetail}</p>
-              <button type="button" className="of-primary" onClick={() => onOpenChange(false)}>Back to home <ArrowRight size={16} /></button>
+              <button type="button" className="of-primary" onClick={() => onOpenChange(false)}>{caption('onboarding.join.home')} <ArrowRight size={16} /></button>
             </div>
           )}
         </section>
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Text before the first comma stays the heading color. Text after it uses the accent color. */
+function splitColoredTitle(title: string): { lead: string; accent: string } {
+  const splitAt = title.indexOf(',');
+  if (splitAt === -1) return { lead: title.trim(), accent: '' };
+  return {
+    lead: title.slice(0, splitAt).trim(),
+    accent: title.slice(splitAt + 1).trim(),
+  };
 }
 
 function StepHeading({
