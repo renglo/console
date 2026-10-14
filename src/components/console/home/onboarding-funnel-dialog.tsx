@@ -55,7 +55,9 @@ export default function OnboardingFunnelDialog({
   const [tag, setTag] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [thumbnail, setThumbnail] = useState<File | null>(null);
-  const [portfolioMode, setPortfolioMode] = useState<'existing' | 'new'>('new');
+  const [portfolioMode, setPortfolioMode] = useState<'existing' | 'new'>(() =>
+    portfolios.length > 0 ? 'existing' : 'new',
+  );
   const [portfolioId, setPortfolioId] = useState('');
   const [portfolioName, setPortfolioName] = useState(projectTypes[0] ?? '');
   const [portfolioNameEdited, setPortfolioNameEdited] = useState(false);
@@ -115,9 +117,9 @@ export default function OnboardingFunnelDialog({
 
   const stepOneReady =
     projectName.trim().length > 0 &&
-    (portfolioChoice.mode === 'new'
-      ? portfolioChoice.portfolioName.trim().length > 0
-      : !!portfolioChoice.portfolioId);
+    (portfolioMode === 'new'
+      ? portfolioName.trim().length > 0
+      : !!portfolioId);
 
   const finish = async () => {
     setBusy(true);
@@ -254,27 +256,52 @@ export default function OnboardingFunnelDialog({
                     </div>
                   </fieldset>
                 )}
-                <label className="of-field">
+                <div className="of-field">
                   <span>{caption('onboarding.entity.portfolio')}</span>
-                  <div className="of-choices">
-                    {portfolios.map((portfolio) => (
-                      <button
-                        type="button"
-                        key={portfolio.id}
-                        className={`of-choice ${portfolioMode === 'existing' && portfolioId === portfolio.id ? 'selected' : ''}`}
-                        onClick={() => { setPortfolioMode('existing'); setPortfolioId(portfolio.id); }}
-                      >
-                        {portfolio.name}
-                      </button>
-                    ))}
+                  <div
+                    className="of-portfolio-mode"
+                    role="radiogroup"
+                    aria-label={caption('onboarding.entity.portfolio')}
+                  >
                     <button
                       type="button"
-                      className={`of-choice ${portfolioMode === 'new' ? 'selected' : ''}`}
+                      role="radio"
+                      aria-checked={portfolioMode === 'existing'}
+                      className={`of-mode-toggle ${portfolioMode === 'existing' ? 'selected' : ''}`}
+                      disabled={portfolios.length === 0}
+                      onClick={() => setPortfolioMode('existing')}
+                    >
+                      {caption('onboarding.entity.addToExistingPortfolio')}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={portfolioMode === 'new'}
+                      className={`of-mode-toggle ${portfolioMode === 'new' ? 'selected' : ''}`}
                       onClick={() => setPortfolioMode('new')}
                     >
-                      {caption('onboarding.entity.newPortfolio')}
+                      {caption('onboarding.entity.createInNewPortfolio')}
                     </button>
                   </div>
+                  <span className="of-portfolio-step">
+                    {portfolioMode === 'existing'
+                      ? caption('onboarding.entity.selectPortfolio')
+                      : caption('onboarding.entity.nameNewPortfolio')}
+                  </span>
+                  {portfolioMode === 'existing' && portfolios.length > 0 && (
+                    <div className="of-choices">
+                      {portfolios.map((portfolio) => (
+                        <button
+                          type="button"
+                          key={portfolio.id}
+                          className={`of-choice ${portfolioId === portfolio.id ? 'selected' : ''}`}
+                          onClick={() => setPortfolioId(portfolio.id)}
+                        >
+                          {portfolio.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {portfolioMode === 'new' && (
                     <input
                       value={portfolioName}
@@ -282,21 +309,24 @@ export default function OnboardingFunnelDialog({
                       placeholder={caption('onboarding.entity.portfolioPlaceholder')}
                     />
                   )}
-                  <button type="button" className="of-text-button" onClick={() => setShowProjects((current) => !current)}>
-                    {caption('onboarding.entity.showExisting')}
-                  </button>
-                  {showProjects && (
-                    <div className="of-chips">
-                      {(portfolioMode === 'existing' ? selectedPortfolio?.orgs || [] : []).map((org) => (
-                        <span className="of-chip" key={org.id}>{org.name}</span>
-                      ))}
-                      {portfolioMode === 'existing' && (selectedPortfolio?.orgs.length || 0) === 0 && (
-                        <span className="of-help">{caption('onboarding.entity.noneInPortfolio')}</span>
+                  {portfolioMode === 'existing' && (
+                    <>
+                      <button type="button" className="of-text-button" onClick={() => setShowProjects((current) => !current)}>
+                        {caption('onboarding.entity.showExisting')}
+                      </button>
+                      {showProjects && (
+                        <div className="of-chips">
+                          {(selectedPortfolio?.orgs || []).map((org) => (
+                            <span className="of-chip" key={org.id}>{org.name}</span>
+                          ))}
+                          {(selectedPortfolio?.orgs.length || 0) === 0 && (
+                            <span className="of-help">{caption('onboarding.entity.noneInPortfolio')}</span>
+                          )}
+                        </div>
                       )}
-                      {portfolioMode === 'new' && <span className="of-help">{caption('onboarding.entity.newPortfolioEmpty')}</span>}
-                    </div>
+                    </>
                   )}
-                </label>
+                </div>
                 <label className="of-field">
                   <span>{caption('onboarding.entity.descriptionLabel')} <small>{caption('onboarding.entity.optional')}</small></span>
                   <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder={caption('onboarding.entity.descriptionPlaceholder')} rows={3} />
