@@ -30,6 +30,7 @@ interface DialogPostProps {
 export default function DialogPost({ refreshUp, blueprint, path, method, title, instructions, buttontext, successTitle, successDescription }: DialogPostProps) {
 
   const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const formId = useId().replace(/:/g, "");
   console.log('Blueprint @ DialogPost')
   console.log(blueprint);
@@ -42,14 +43,29 @@ export default function DialogPost({ refreshUp, blueprint, path, method, title, 
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && submitting) return;
+        if (!next) setSubmitting(false);
+        setOpen(next);
+      }}
+    >
       <DialogTrigger asChild>
         <div className="flex flex-row gap-3">
           <SquarePlus />
           {buttontext}
         </div>    
       </DialogTrigger>
-      <DialogContent className="flex max-h-[90vh] w-[calc(100vw-1rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:w-full">
+      <DialogContent
+        className={`flex max-h-[90vh] w-[calc(100vw-1rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:w-full ${submitting ? "[&>button]:pointer-events-none [&>button]:opacity-40" : ""}`}
+        onEscapeKeyDown={(event) => {
+          if (submitting) event.preventDefault();
+        }}
+        onPointerDownOutside={(event) => {
+          if (submitting) event.preventDefault();
+        }}
+      >
         <DialogHeader className="sticky top-0 z-20 shrink-0 space-y-0 border-b bg-background px-4 py-3 pr-14 text-left">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1 space-y-1">
@@ -66,9 +82,10 @@ export default function DialogPost({ refreshUp, blueprint, path, method, title, 
               type="submit"
               form={formId}
               size="sm"
+              disabled={submitting}
               className="w-full shrink-0 sm:mt-0 sm:w-auto"
             >
-              Save
+              {submitting ? "Saving…" : "Save"}
             </Button>
           </div>
         </DialogHeader>
@@ -82,6 +99,7 @@ export default function DialogPost({ refreshUp, blueprint, path, method, title, 
             hideSubmitButton
             successTitle={successTitle}
             successDescription={successDescription}
+            onSubmittingChange={setSubmitting}
           />
         </div>
       </DialogContent>
