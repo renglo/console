@@ -1,4 +1,4 @@
-import { useState,useEffect,useContext } from 'react';
+import { useState,useEffect,useContext,useRef } from 'react';
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -473,6 +473,7 @@ interface FormPostProps {
     hideSubmitButton?: boolean;
     successTitle?: string;
     successDescription?: string;
+    onSubmittingChange?: (submitting: boolean) => void;
 }
 
 interface SourceFieldMeta {
@@ -595,6 +596,7 @@ export default function FormPost({
   hideSubmitButton = false,
   successTitle = "Data submitted successfully",
   successDescription = "Data submitted successfully!",
+  onSubmittingChange,
 }: FormPostProps) {
 
   console.log('Blueprint @ FormPost')
@@ -1559,7 +1561,19 @@ export default function FormPost({
   // Toast
   const { toast } = useToast();
 
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  function setBusy(next: boolean) {
+    submittingRef.current = next;
+    setSubmitting(next);
+    onSubmittingChange?.(next);
+  }
+
   async function onSubmit(data: z.infer<typeof FormSchema>) {
+      if (submittingRef.current) return;
+      setBusy(true);
+      try {
       // Normalize widget:json values before sending to API.
       for (const field of Fields) {
         if (field.widget !== "json") continue;
@@ -1705,13 +1719,17 @@ export default function FormPost({
                   </pre>
               ),
             });
+        }
+      } finally {
+        setBusy(false);
       }
   }
 
   // Component
   return (
       <Form {...form}>
-      <form id={formId} onSubmit={form.handleSubmit(onSubmit)}>
+      <form id={formId} onSubmit={form.handleSubmit(onSubmit)} aria-busy={submitting}>
+          <fieldset disabled={submitting} className="min-w-0 border-0 p-0 disabled:opacity-60">
           {Fields.map((field) => (
           
           <FormField
@@ -1729,7 +1747,12 @@ export default function FormPost({
           />
           
           ))}
-          {!hideSubmitButton && <Button key="submit" type="submit">Save</Button>}
+          </fieldset>
+          {!hideSubmitButton && (
+            <Button key="submit" type="submit" disabled={submitting}>
+              {submitting ? "Saving…" : "Save"}
+            </Button>
+          )}
       </form>
       </Form>
   );
