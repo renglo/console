@@ -1,3 +1,9 @@
+.onboarding-funnel.onboarding-funnel {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+}
 .onboarding-funnel {
   color: #252329;
   font-family: Arial, Helvetica, sans-serif;
@@ -14,11 +20,40 @@
   border-radius: 25px;
   box-shadow: 0 18px 60px rgba(63, 45, 33, 0.08);
   padding: 34px clamp(22px, 4vw, 56px) 36px;
-  min-height: 520px;
+  min-height: min(520px, calc(100vh - 2rem));
+  min-height: min(520px, calc(100dvh - 2rem));
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
-.onboarding-funnel .of-progress-row { display: flex; justify-content: space-between; align-items: center; }
+.onboarding-funnel .of-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.onboarding-funnel .of-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.onboarding-funnel .of-intro,
+.onboarding-funnel .of-complete {
+  min-height: 0;
+  flex: 0 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.onboarding-funnel .of-step-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .onboarding-funnel .of-eyebrow,
 .onboarding-funnel .of-kicker {
   text-transform: uppercase;
@@ -39,6 +74,7 @@
 }
 .onboarding-funnel .of-text-button:hover { color: #252329; }
 .onboarding-funnel .of-track {
+  flex-shrink: 0;
   height: 3px;
   border-radius: 9px;
   margin: 15px 0 28px;
@@ -133,7 +169,16 @@
   font-size: 11px;
   margin-top: 28px;
 }
-.onboarding-funnel .of-step { max-width: 650px; width: 100%; margin: 8px auto 0; }
+.onboarding-funnel .of-step {
+  max-width: 650px;
+  width: 100%;
+  margin: 8px auto 0;
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
 .onboarding-funnel .of-heading { display: flex; gap: 17px; align-items: flex-start; }
 .onboarding-funnel .of-step-icon {
   flex: 0 0 auto;
@@ -188,18 +233,6 @@
   border-color: #e38a6d;
   box-shadow: 0 0 0 3px #fae6dd;
 }
-.onboarding-funnel fieldset { border: 0; padding: 0; margin: 0; }
-.onboarding-funnel .of-types { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-.onboarding-funnel .of-type {
-  min-height: 52px;
-  border: 1px solid #e1dad5;
-  border-radius: 10px;
-  background: #fffdfa;
-  color: #716a6c;
-  font-size: 12px;
-  font-weight: 700;
-}
-.onboarding-funnel .of-type.selected { border-color: #e98b6d; color: #b75e44; background: #fff0e9; }
 .onboarding-funnel .of-tags {
   border: 1px solid #e1dad5;
   border-radius: 10px;
@@ -221,13 +254,16 @@
 }
 .onboarding-funnel .of-tag button { border: 0; background: transparent; color: inherit; padding: 0; }
 .onboarding-funnel .of-actions {
+  flex-shrink: 0;
   border-top: 1px solid #eee8e3;
   margin-top: 28px;
   padding-top: 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
+  background: rgba(255, 253, 250, 0.96);
 }
 .onboarding-funnel .of-primary {
   border: 0;
@@ -243,33 +279,6 @@
 }
 .onboarding-funnel .of-primary:hover:not(:disabled) { background: #e27756; }
 .onboarding-funnel .of-primary:disabled { opacity: 0.35; cursor: not-allowed; }
-.onboarding-funnel .of-portfolio-mode {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 4px;
-}
-.onboarding-funnel .of-mode-toggle {
-  min-height: 72px;
-  border: 1px solid #e1dad5;
-  border-radius: 12px;
-  background: #fffdfa;
-  color: #716a6c;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.35;
-  padding: 12px 10px;
-  text-align: center;
-}
-.onboarding-funnel .of-mode-toggle.selected {
-  border-color: #e98b6d;
-  color: #b75e44;
-  background: #fff0e9;
-}
-.onboarding-funnel .of-mode-toggle:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
 .onboarding-funnel .of-portfolio-step {
   display: block;
   margin-top: 14px;
@@ -324,6 +333,7 @@
   align-items: center;
   flex-direction: column;
   padding: 24px 0;
+  width: 100%;
 }
 .onboarding-funnel .of-mark {
   width: 70px;
@@ -336,7 +346,6 @@
   margin-bottom: 20px;
 }
 @media (max-width: 720px) {
-  .onboarding-funnel .of-path-grid,
-  .onboarding-funnel .of-types { grid-template-columns: 1fr 1fr; }
+  .onboarding-funnel .of-path-grid { grid-template-columns: 1fr 1fr; }
   .onboarding-funnel .of-card { border-radius: 19px; padding: 24px 18px 24px; }
 }

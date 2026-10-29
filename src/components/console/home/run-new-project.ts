@@ -1,5 +1,5 @@
 import { rowsToTags, type TagRow } from '@/lib/entity-tags';
-import { orgIdFromCreateResponse, uploadOrgThumbnail } from '@/lib/org-project-api';
+import { orgIdFromCreateResponse } from '@/lib/org-project-api';
 
 export const PROJECT_EXTENSIONS = [
   'breakdown',
@@ -16,10 +16,8 @@ export type PortfolioChoice =
 
 export type NewProjectDraft = {
   projectName: string;
-  projectType: string;
   description: string;
   tags: string[];
-  thumbnail: File | null;
   portfolio: PortfolioChoice;
   guestEmails: string;
 };
@@ -30,7 +28,6 @@ export type SetupProgress = {
   staffTeamId?: string;
   staffCreated?: boolean;
   orgId?: string;
-  thumbnailDone?: boolean;
   installed: string[];
   grantsDone?: boolean;
   invited: string[];
@@ -194,12 +191,11 @@ export async function runNewProject(
 
   if (!progress.orgId) {
     report('Creating the project');
-    const tagRows: TagRow[] = [
-      ...(draft.projectType.trim()
-        ? [{ id: 'type', key: 'type', value: draft.projectType.trim() }]
-        : []),
-      ...draft.tags.map((value, index) => ({ id: `tag-${index}`, key: 'tag', value })),
-    ];
+    const tagRows: TagRow[] = draft.tags.map((value, index) => ({
+      id: `tag-${index}`,
+      key: 'tag',
+      value,
+    }));
     const created = await authFetch(`/_auth/orgs/${portfolioId}`, 'POST', {
       name: draft.projectName.trim(),
       about: draft.description.trim(),
@@ -211,13 +207,6 @@ export async function runNewProject(
     }
     progress.orgId = orgId;
     report('Project created');
-  }
-
-  if (draft.thumbnail && !progress.thumbnailDone) {
-    report('Uploading the thumbnail');
-    await uploadOrgThumbnail(portfolioId, progress.orgId, draft.thumbnail);
-    progress.thumbnailDone = true;
-    report('Thumbnail uploaded');
   }
 
   for (const handle of PROJECT_EXTENSIONS) {
