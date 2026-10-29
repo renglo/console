@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { caption, captionList } from '@/lib/messages';
+import { caption } from '@/lib/messages';
 
 import './onboarding-funnel.css';
 import {
@@ -46,21 +46,13 @@ export default function OnboardingFunnelDialog({
   portfolios,
   onFinished,
 }: OnboardingFunnelDialogProps) {
-  const projectTypes = captionList('onboarding.entity.types');
   const [path, setPath] = useState<'new' | 'existing' | null>(null);
   const [step, setStep] = useState(1);
   const [projectName, setProjectName] = useState('');
-  const [projectType, setProjectType] = useState(projectTypes[0] ?? '');
   const [description, setDescription] = useState('');
   const [tag, setTag] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [thumbnail, setThumbnail] = useState<File | null>(null);
-  const [portfolioMode, setPortfolioMode] = useState<'existing' | 'new'>(() =>
-    portfolios.length > 0 ? 'existing' : 'new',
-  );
   const [portfolioId, setPortfolioId] = useState('');
-  const [portfolioName, setPortfolioName] = useState(projectTypes[0] ?? '');
-  const [portfolioNameEdited, setPortfolioNameEdited] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [emails, setEmails] = useState('');
   const [token, setToken] = useState('');
@@ -83,20 +75,12 @@ export default function OnboardingFunnelDialog({
   const selectedPortfolio = portfolios.find((portfolio) => portfolio.id === portfolioId);
 
   const portfolioChoice: PortfolioChoice = useMemo(() => {
-    if (portfolioMode === 'existing' && selectedPortfolio) {
-      return {
-        mode: 'existing',
-        portfolioId: selectedPortfolio.id,
-        portfolioName: selectedPortfolio.name,
-      };
-    }
-    return { mode: 'new', portfolioName: portfolioName.trim() };
-  }, [portfolioMode, portfolioName, selectedPortfolio]);
-
-  const chooseType = (next: string) => {
-    setProjectType(next);
-    if (!portfolioNameEdited) setPortfolioName(next);
-  };
+    return {
+      mode: 'existing',
+      portfolioId: selectedPortfolio?.id ?? '',
+      portfolioName: selectedPortfolio?.name ?? '',
+    };
+  }, [selectedPortfolio]);
 
   const addTag = () => {
     const next = tag.trim();
@@ -115,21 +99,15 @@ export default function OnboardingFunnelDialog({
     setBusy(false);
   };
 
-  const stepOneReady =
-    projectName.trim().length > 0 &&
-    (portfolioMode === 'new'
-      ? portfolioName.trim().length > 0
-      : !!portfolioId);
+  const stepOneReady = projectName.trim().length > 0 && !!portfolioId;
 
   const finish = async () => {
     setBusy(true);
     setError('');
     const draft: NewProjectDraft = {
       projectName,
-      projectType,
       description,
       tags,
-      thumbnail,
       portfolio: portfolioChoice,
       guestEmails: emails,
     };
@@ -208,8 +186,9 @@ export default function OnboardingFunnelDialog({
             </div>
           )}
 
+          <div className="of-body">
           {!path && (
-            <div>
+            <div className="of-intro">
               {startKicker ? <div className="of-kicker">{startKicker}</div> : null}
               <h1 id="onboarding-title">
                 {startTitle.lead}
@@ -238,57 +217,19 @@ export default function OnboardingFunnelDialog({
 
           {path === 'new' && step === 1 && (
             <div className="of-step">
+              <div className="of-step-scroll">
               <StepHeading icon={<FolderPlus size={18} />} label={caption('onboarding.entity.label')} title={caption('onboarding.entity.title')} description={caption('onboarding.entity.description')} />
               <div className="of-form">
                 <label className="of-field">
                   <span>{caption('onboarding.entity.name')}</span>
                   <input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder={caption('onboarding.entity.namePlaceholder')} />
                 </label>
-                {projectTypes.length > 0 && (
-                  <fieldset className="of-field">
-                    <legend>{caption('onboarding.entity.making')}</legend>
-                    <div className="of-types">
-                      {projectTypes.map((type) => (
-                        <button type="button" key={type} className={`of-type ${projectType === type ? 'selected' : ''}`} onClick={() => chooseType(type)}>
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                  </fieldset>
-                )}
                 <div className="of-field">
                   <span>{caption('onboarding.entity.portfolio')}</span>
-                  <div
-                    className="of-portfolio-mode"
-                    role="radiogroup"
-                    aria-label={caption('onboarding.entity.portfolio')}
-                  >
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={portfolioMode === 'existing'}
-                      className={`of-mode-toggle ${portfolioMode === 'existing' ? 'selected' : ''}`}
-                      disabled={portfolios.length === 0}
-                      onClick={() => setPortfolioMode('existing')}
-                    >
-                      {caption('onboarding.entity.addToExistingPortfolio')}
-                    </button>
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={portfolioMode === 'new'}
-                      className={`of-mode-toggle ${portfolioMode === 'new' ? 'selected' : ''}`}
-                      onClick={() => setPortfolioMode('new')}
-                    >
-                      {caption('onboarding.entity.createInNewPortfolio')}
-                    </button>
-                  </div>
                   <span className="of-portfolio-step">
-                    {portfolioMode === 'existing'
-                      ? caption('onboarding.entity.selectPortfolio')
-                      : caption('onboarding.entity.nameNewPortfolio')}
+                    {caption('onboarding.entity.selectPortfolio')}
                   </span>
-                  {portfolioMode === 'existing' && portfolios.length > 0 && (
+                  {portfolios.length > 0 && (
                     <div className="of-choices">
                       {portfolios.map((portfolio) => (
                         <button
@@ -302,29 +243,18 @@ export default function OnboardingFunnelDialog({
                       ))}
                     </div>
                   )}
-                  {portfolioMode === 'new' && (
-                    <input
-                      value={portfolioName}
-                      onChange={(event) => { setPortfolioNameEdited(true); setPortfolioName(event.target.value); }}
-                      placeholder={caption('onboarding.entity.portfolioPlaceholder')}
-                    />
-                  )}
-                  {portfolioMode === 'existing' && (
-                    <>
-                      <button type="button" className="of-text-button" onClick={() => setShowProjects((current) => !current)}>
-                        {caption('onboarding.entity.showExisting')}
-                      </button>
-                      {showProjects && (
-                        <div className="of-chips">
-                          {(selectedPortfolio?.orgs || []).map((org) => (
-                            <span className="of-chip" key={org.id}>{org.name}</span>
-                          ))}
-                          {(selectedPortfolio?.orgs.length || 0) === 0 && (
-                            <span className="of-help">{caption('onboarding.entity.noneInPortfolio')}</span>
-                          )}
-                        </div>
+                  <button type="button" className="of-text-button" onClick={() => setShowProjects((current) => !current)}>
+                    {caption('onboarding.entity.showExisting')}
+                  </button>
+                  {showProjects && (
+                    <div className="of-chips">
+                      {(selectedPortfolio?.orgs || []).map((org) => (
+                        <span className="of-chip" key={org.id}>{org.name}</span>
+                      ))}
+                      {(selectedPortfolio?.orgs.length || 0) === 0 && (
+                        <span className="of-help">{caption('onboarding.entity.noneInPortfolio')}</span>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
                 <label className="of-field">
@@ -351,14 +281,7 @@ export default function OnboardingFunnelDialog({
                     </div>
                   </div>
                 </div>
-                <label className="of-field">
-                  <span>{caption('onboarding.entity.thumbnail')} <small>{caption('onboarding.entity.optional')}</small></span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    onChange={(event) => setThumbnail(event.target.files?.[0] || null)}
-                  />
-                </label>
+              </div>
               </div>
               <div className="of-actions">
                 <button type="button" className="of-text-button" onClick={() => setPath(null)}><ArrowLeft size={16} /> {caption('onboarding.entity.back')}</button>
@@ -369,11 +292,13 @@ export default function OnboardingFunnelDialog({
 
           {path === 'new' && step === 2 && (
             <div className="of-step">
+              <div className="of-step-scroll">
               <StepHeading icon={<Layers3 size={18} />} label={caption('onboarding.review.label')} title={caption('onboarding.review.title')} description={caption('onboarding.review.description')} />
               <div className="of-setup">
-                <SetupItem title={caption('onboarding.review.workspace', { portfolio: portfolioChoice.portfolioName })} detail={caption('onboarding.review.detail', { type: projectType, name: projectName || caption('onboarding.review.untitled') })} />
+                <SetupItem title={caption('onboarding.review.workspace', { portfolio: portfolioChoice.portfolioName })} detail={caption('onboarding.review.detail', { name: projectName || caption('onboarding.review.untitled') })} />
                 <SetupItem title={caption('onboarding.review.extensions')} detail={PROJECT_EXTENSIONS.join(', ')} />
                 <SetupItem title={caption('onboarding.review.teams')} detail={caption('onboarding.review.teamsDetail', { portfolio: portfolioChoice.portfolioName })} />
+              </div>
               </div>
               <div className="of-actions">
                 <button type="button" className="of-text-button" onClick={() => setStep(1)}><ArrowLeft size={16} /> {caption('onboarding.entity.back')}</button>
@@ -384,6 +309,7 @@ export default function OnboardingFunnelDialog({
 
           {path === 'new' && step === 3 && (
             <div className="of-step">
+              <div className="of-step-scroll">
               <StepHeading icon={<MailPlus size={18} />} label={caption('onboarding.invite.label')} title={caption('onboarding.invite.title')} description={caption('onboarding.invite.description')} />
               <label className="of-field">
                 <span>{caption('onboarding.invite.emails')} <small>{caption('onboarding.invite.emailsHint')}</small></span>
@@ -392,6 +318,7 @@ export default function OnboardingFunnelDialog({
               <p className="of-help">{caption('onboarding.invite.later')}</p>
               {statusLabel && <p className="of-help">{statusLabel}</p>}
               {error && <p className="of-error">{error}</p>}
+              </div>
               <div className="of-actions">
                 <button type="button" className="of-text-button" onClick={() => setStep(2)} disabled={busy}><ArrowLeft size={16} /> {caption('onboarding.entity.back')}</button>
                 <button type="button" className="of-primary" onClick={finish} disabled={busy}>
@@ -416,6 +343,7 @@ export default function OnboardingFunnelDialog({
 
           {path === 'existing' && step === 1 && (
             <div className="of-step">
+              <div className="of-step-scroll">
               <StepHeading icon={<FileKey2 size={18} />} label={caption('onboarding.join.label')} title={caption('onboarding.join.title')} description={caption('onboarding.join.description')} />
               <label className="of-field">
                 <span>{caption('onboarding.join.token')}</span>
@@ -423,6 +351,7 @@ export default function OnboardingFunnelDialog({
               </label>
               <p className="of-help">{caption('onboarding.join.tokenHelp')}</p>
               {error && <p className="of-error">{error}</p>}
+              </div>
               <div className="of-actions">
                 <button type="button" className="of-text-button" onClick={() => setPath(null)} disabled={busy}><ArrowLeft size={16} /> {caption('onboarding.entity.back')}</button>
                 <button type="button" className="of-primary" disabled={!token.trim() || busy} onClick={join}>
@@ -441,6 +370,7 @@ export default function OnboardingFunnelDialog({
               <button type="button" className="of-primary" onClick={() => onOpenChange(false)}>{caption('onboarding.join.home')} <ArrowRight size={16} /></button>
             </div>
           )}
+          </div>
         </section>
       </DialogContent>
     </Dialog>

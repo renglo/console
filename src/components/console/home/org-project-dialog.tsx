@@ -160,7 +160,7 @@ export default function OrgProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] w-[calc(100vw-1rem)] max-w-lg flex-col gap-0 overflow-hidden p-0 sm:w-full">
+      <DialogContent className="!flex max-h-[90vh] w-[calc(100vw-1rem)] max-w-lg !flex-col gap-0 overflow-hidden p-0 sm:w-full">
         <DialogHeader className="shrink-0 space-y-1 border-b px-4 py-3 text-left">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
