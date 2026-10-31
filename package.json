@@ -2,7 +2,7 @@
   "name": "@renglo/console",
   "homepage": ".",
   "private": false,
-  "version": "0.0.21-rc.1",
+  "version": "0.0.21",
   "renglo": {
     "platform": "0.1.13"
   },
