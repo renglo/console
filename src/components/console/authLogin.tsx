@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { signIn } from './authService';
 import { finishAuthenticatedSession } from './authSession';
-import { captions, wlBackgroundUrl } from '@/lib/branding';
+import { captions, wlBackgroundUrl, wlLoginLogoUrl } from '@/lib/branding';
 import referenceDocument from '@/auth/reference-providers.json';
 import {
   beginFederatedSignIn,
@@ -120,6 +120,7 @@ export default function AuthLogin() {
     };
 
     const backgroundUrl = wlBackgroundUrl();
+    const logoUrl = wlLoginLogoUrl();
     const federated = externalProviders(providers);
     const passwordEnabled = showPasswordForm(providers);
 
@@ -134,6 +135,9 @@ export default function AuthLogin() {
           <div className="relative flex min-h-screen items-center justify-center px-4 py-12">
             <div className="mx-auto grid w-full max-w-[400px] gap-6 rounded-lg border bg-background/95 p-8 shadow-lg backdrop-blur-sm">
               <div className="grid gap-2 text-center">
+                  {logoUrl && (
+                    <img src={logoUrl} alt="" className="mx-auto h-16 w-auto" />
+                  )}
                   <h1 className="text-3xl font-bold">{captions.loginTitle}</h1>
                   <p className="text-balance text-muted-foreground">
                   {captions.loginSubtitle}
