@@ -24,7 +24,7 @@ export function wlLogoUrl(): string {
 
 /** Login hero logo. */
 export function wlLoginLogoUrl(): string {
-  return largeLogo;
+  return smallLogo;
 }
 
 /** Login page background image. */
