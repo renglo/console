@@ -2,9 +2,9 @@
   "name": "@renglo/console",
   "homepage": ".",
   "private": false,
-  "version": "0.0.21",
+  "version": "0.0.22-rc.1",
   "renglo": {
-    "platform": "0.1.13"
+    "platform": "0.1.14"
   },
   "license": "MIT",
   "type": "module",
