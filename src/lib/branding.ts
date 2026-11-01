@@ -1,7 +1,6 @@
 import {
   background,
   captions,
-  largeLogo,
   locales,
   smallLogo,
 } from "@wl";
