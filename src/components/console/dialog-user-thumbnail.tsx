@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { ImageUp } from 'lucide-react';
 
 import {
@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/use-toast';
 import {
   isAcceptedImageFile,
   notifyUserThumbnailUpdated,
+  prepareThumbnailFile,
   userThumbnailUrl,
 } from '@/lib/image-upload';
 
@@ -26,6 +27,8 @@ export default function DialogUserThumbnail({ refreshUp }: DialogUserThumbnailPr
   const [open, setOpen] = useState(false);
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const prepareRequest = useRef(0);
   const { toast } = useToast();
   const handle = sessionStorage.getItem('cu_handle') ?? '';
   const currentThumbnail = handle
@@ -34,12 +37,14 @@ export default function DialogUserThumbnail({ refreshUp }: DialogUserThumbnailPr
 
   useEffect(() => {
     if (!open) {
+      prepareRequest.current += 1;
       setImage(null);
       setPreview(null);
+      setPreparing(false);
     }
   }, [open]);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -53,12 +58,34 @@ export default function DialogUserThumbnail({ refreshUp }: DialogUserThumbnailPr
       event.target.value = '';
       return;
     }
-    setImage(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+
+    const requestId = prepareRequest.current + 1;
+    prepareRequest.current = requestId;
+    setImage(null);
+    setPreview(null);
+    setPreparing(true);
+    try {
+      const prepared = await prepareThumbnailFile(file);
+      if (prepareRequest.current !== requestId) return;
+      setImage(prepared);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (prepareRequest.current !== requestId) return;
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(prepared);
+    } catch (error) {
+      if (prepareRequest.current !== requestId) return;
+      console.error(error);
+      toast({
+        title: 'Could not prepare image',
+        description: error instanceof Error ? error.message : 'Choose a smaller JPEG or PNG.',
+        variant: 'destructive',
+      });
+      event.target.value = '';
+    } finally {
+      if (prepareRequest.current === requestId) setPreparing(false);
+    }
   };
 
   const handleUpload = async (event?: FormEvent) => {
@@ -96,11 +123,14 @@ export default function DialogUserThumbnail({ refreshUp }: DialogUserThumbnailPr
         },
       );
 
-      const uploadResult = await uploadResponse.json();
+      const uploadResult = await uploadResponse.json().catch(() => ({}));
       if (!uploadResponse.ok) {
+        const tooLarge = uploadResponse.status === 413;
         toast({
           title: 'Upload failed',
-          description: uploadResult.message || 'Could not upload thumbnail.',
+          description: tooLarge
+            ? 'The image is too large for the server. Choose a smaller photo.'
+            : uploadResult.message || 'Could not upload thumbnail.',
           variant: 'destructive',
         });
         return;
@@ -156,8 +186,8 @@ export default function DialogUserThumbnail({ refreshUp }: DialogUserThumbnailPr
             {preview && (
               <img src={preview} alt="Preview" className="mt-2 h-24 w-24 rounded-full object-cover" />
             )}
-            <Button type="submit" disabled={!image}>
-              Upload
+            <Button type="submit" disabled={!image || preparing}>
+              {preparing ? 'Preparing…' : 'Upload'}
             </Button>
           </form>
         </ScrollArea>

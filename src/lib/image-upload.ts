@@ -21,6 +21,100 @@ export function isAcceptedImageFile(file: File): boolean {
   return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png');
 }
 
+/** Stored profile thumbnails are this square. Matches the server resize. */
+export const THUMBNAIL_EDGE = 500;
+
+/**
+ * Largest source file we will decode in the browser.
+ * API Gateway returns 413 once a multipart body passes about 6MB, so uploads
+ * are resized to THUMBNAIL_EDGE before they are posted.
+ */
+export const THUMBNAIL_SOURCE_LIMIT_BYTES = 40 * 1024 * 1024;
+
+export type CoverCrop = { sx: number; sy: number; sw: number; sh: number };
+
+/** Center cover-crop, same framing as the server's square fit. */
+export function coverCropSourceRect(
+  width: number,
+  height: number,
+  edge: number = THUMBNAIL_EDGE,
+): CoverCrop {
+  if (!(width > 0) || !(height > 0) || !(edge > 0)) {
+    throw new Error('Invalid image size');
+  }
+  const scale = Math.max(edge / width, edge / height);
+  const sw = edge / scale;
+  const sh = edge / scale;
+  return {
+    sx: (width - sw) / 2,
+    sy: (height - sh) / 2,
+    sw,
+    sh,
+  };
+}
+
+/**
+ * Downscale a JPEG/PNG to a square PNG small enough for the files API.
+ * The raw camera file is what API Gateway rejects with 413.
+ */
+export async function prepareThumbnailFile(file: File): Promise<File> {
+  if (!isAcceptedImageFile(file)) {
+    throw new Error('Please upload a JPEG or PNG file.');
+  }
+  if (file.size > THUMBNAIL_SOURCE_LIMIT_BYTES) {
+    throw new Error('This image is too large. Choose a photo under 40 MB.');
+  }
+
+  const bitmap = await loadOrientedBitmap(file);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = THUMBNAIL_EDGE;
+    canvas.height = THUMBNAIL_EDGE;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Could not prepare image.');
+    }
+    const crop = coverCropSourceRect(bitmap.width, bitmap.height);
+    ctx.drawImage(
+      bitmap,
+      crop.sx,
+      crop.sy,
+      crop.sw,
+      crop.sh,
+      0,
+      0,
+      THUMBNAIL_EDGE,
+      THUMBNAIL_EDGE,
+    );
+    const blob = await canvasToPngBlob(canvas);
+    const stem = file.name.replace(/\.[^.]+$/, '') || 'thumbnail';
+    return new File([blob], `${stem}.png`, { type: 'image/png' });
+  } finally {
+    bitmap.close();
+  }
+}
+
+async function loadOrientedBitmap(file: File): Promise<ImageBitmap> {
+  try {
+    return await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch (error) {
+    try {
+      return await createImageBitmap(file);
+    } catch {
+      throw error instanceof Error ? error : new Error('Could not read image.');
+    }
+  }
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('Could not prepare image.'));
+    }, 'image/png');
+  });
+}
+
 /** Public URL for a user's profile thumbnail (500×500 PNG in S3). */
 export function userThumbnailUrl(handle: string, refresh?: string | number): string {
   const trimmed = handle.trim();
