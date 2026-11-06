@@ -6,21 +6,15 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-import { useParams, useLocation } from 'react-router-dom';
-import { useState, useEffect, useContext } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useState, useContext } from 'react';
+import { SquarePlus } from 'lucide-react';
 import { GlobalContext } from "@/components/console/global-context"
 
 
 import OrgsCard from "@/components/console/orgs-card"
-import DialogPost from "@/components/console/dialog-post"
+import OrgProjectDialog from "@/components/console/home/org-project-dialog"
 import { PORTFOLIO_SCOPE_ORG, sortByName } from "@/lib/sort-entities"
-
-
-interface Blueprint {
-  label: string;
-  // Add other properties as needed
-  [key: string]: any; // This allows for additional dynamic properties if necessary
-}
   
 export default function SettingsOrgs() {
 
@@ -28,57 +22,15 @@ export default function SettingsOrgs() {
   if (!context) {
     throw new Error('No GlobalProvider');
   }
-  const { tree } = context;
+  const { tree, loadTree } = context;
 
   const location = useLocation();
   const p_portfolio = location.pathname.split('/')[1]
   
-  const [blueprint, setBlueprint] = useState<Blueprint>({ label: '' });
-  const [refresh, setRefresh] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
-  const { ring } = useParams(); // Extract the 'route' parameter from the URL
-
-
-
-  useEffect(() => {
-      // Function to fetch Blueprint
-      const fetchBlueprint = async () => {
-        try {
-          // Fetch Blueprint
-          const blueprintResponse = await fetch(`${import.meta.env.VITE_API_URL}/_blueprint/sys/entities/last`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${sessionStorage.accessToken}`,
-            },
-          });
-          const blueprintData = await blueprintResponse.json();
-          setBlueprint(blueprintData);
-          setRefresh((prev: boolean) => !prev); 
-          console.log(refresh)
-          
-
-          
-
-        } catch (err) {
-          if (err instanceof Error) {
-            setError(err);  // Now TypeScript knows `err` is of type `Error`.
-          } else {
-            setError(new Error("An unknown error occurred"));  // Handle other types
-          }
-          console.log(error)
-        } finally {
-          //setLoading(false);
-        }
-      };
-
-      fetchBlueprint();
-  }, [ring]);
-
-
-  // Function to update the state
   const refreshAction = () => {
-    setRefresh((prev: boolean) => !prev);  // Toggle the `refresh` state to trigger useEffect
+    loadTree?.();
   };
 
 
@@ -92,13 +44,20 @@ export default function SettingsOrgs() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <DialogPost
-                            refreshUp={refreshAction}
-                            blueprint={blueprint}
-                            title={`Create a new Organization`}
-                            instructions="Enter the name of your organization, you'll be able to add more information about it later"
-                            path={`${import.meta.env.VITE_API_URL}/_auth/orgs/${p_portfolio}`}
-                            method='POST'
+                <button
+                  type="button"
+                  className="flex flex-row items-center gap-3 text-sm text-muted-foreground hover:text-foreground"
+                  onClick={() => setCreateOpen(true)}
+                >
+                  <SquarePlus className="size-5" aria-hidden />
+                  Create a new organization
+                </button>
+                <OrgProjectDialog
+                  portfolioId={p_portfolio}
+                  mode="create"
+                  open={createOpen}
+                  onOpenChange={setCreateOpen}
+                  onSaved={refreshAction}
                 />
               </CardContent>  
             </Card>
