@@ -43,7 +43,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import {GlobalContext} from "@/components/console/global-context"
 import { cn } from "@/lib/utils";
-import { parseBlueprintSourceSpec } from "@/lib/console_utils";
+import { isBlueprintTableField, parseBlueprintSourceSpec } from "@/lib/console_utils";
 import {
   DOCUMENT_ACCEPT,
   isAcceptedDocumentFile,
@@ -430,6 +430,8 @@ interface Field {
   id: string;
   label: string;
   layer: string;
+  /** Some blueprints store the same tier as `level`. */
+  level?: string;
   multilingual: boolean;
   name: string;
   order: string;
@@ -1512,10 +1514,16 @@ export default function FormPost({
   useEffect(() => {
       const updateBlueprint = async () => {  
         
+          const sourceFields = Array.isArray(blueprint?.fields) ? blueprint.fields : [];
+          const tierZero = sourceFields.filter((field) => isBlueprintTableField(field));
+          // Create dialogs ask for the name first. A blueprint with no tier 0
+          // still needs that field, otherwise the input is omitted entirely.
+          const visible = tierZero.length > 0
+            ? tierZero
+            : sourceFields.filter((field) => field?.name === "name").slice(0, 1);
+
           setFields(
-            blueprint.fields
-              .filter(field => Number(field.layer) <= 0)
-              .map(field => ({
+            visible.map(field => ({
                 ...field,
                 type: field.type as "string" | "number" | "integer" | "float" | "timestamp" | "array" | "object",
                 widget: field.widget as "number" | "date" | "time" | "datetime" | "timerange" | "daterange" | "select" | "text" | "textarea" | "image" | "document" | "select-cascade" | "tag" | "json",
