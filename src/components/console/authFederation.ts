@@ -16,12 +16,20 @@ export type AuthProvider = {
   id: string;
   name: string;
   type: string;
-  cognito_provider_name: string;
+  /** Directory IdP key: Cognito `identity_provider` or Entra routing hint. */
+  provider_name: string;
+  /** @deprecated Prefer `provider_name`. Still accepted from older `/_auth/providers` payloads. */
+  cognito_provider_name?: string;
   enabled?: boolean;
   display_name: string;
   icon?: string;
   display_order?: number;
 };
+
+/** Resolved IdP name for the directory (cloud-agnostic). */
+export function directoryProviderName(provider: AuthProvider): string {
+  return String(provider.provider_name ?? provider.cognito_provider_name ?? '').trim();
+}
 
 export type KeyValueStore = {
   getItem(key: string): string | null;
@@ -159,13 +167,13 @@ export async function beginFederatedSignIn(input: {
   const nonce = randomUrlSafe(16);
   input.storage.setItem(PKCE_VERIFIER_STORAGE_KEY, verifier);
   input.storage.setItem(OAUTH_NONCE_STORAGE_KEY, nonce);
-  input.storage.setItem(AUTH_PROVIDER_STORAGE_KEY, input.provider.cognito_provider_name);
+  input.storage.setItem(AUTH_PROVIDER_STORAGE_KEY, directoryProviderName(input.provider));
   const challenge = await pkceChallenge(verifier);
   return buildAuthorizeUrl({
     domain: input.domain,
     clientId: input.clientId,
     redirectUri: input.redirectUri,
-    identityProvider: input.provider.cognito_provider_name,
+    identityProvider: directoryProviderName(input.provider),
     state: encodeState(nonce, invite),
     codeChallenge: challenge,
     loginHint: input.loginHint,
@@ -288,7 +296,7 @@ export async function maybeRetryLinkedAccount(input: {
       id: providerName,
       name: providerName,
       type: 'external',
-      cognito_provider_name: providerName,
+      provider_name: providerName,
       display_name: providerName,
     },
     search: input.search,

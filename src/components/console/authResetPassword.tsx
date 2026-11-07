@@ -11,7 +11,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 
 import { useState, FormEvent } from 'react';
-import { CognitoIdentityProviderClient, ConfirmForgotPasswordCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { confirmPasswordReset } from './authClient';
 import { wlLogoUrl } from '@/lib/branding';
 
 /** Cognito blocks password reset while the user is in FORCE_CHANGE_PASSWORD. */
@@ -42,19 +42,8 @@ const ResetPassword = () => {
     e.preventDefault();
     setStatus('');
 
-    const client = new CognitoIdentityProviderClient({
-      region: import.meta.env.VITE_COGNITO_REGION,
-    });
-
-    const command = new ConfirmForgotPasswordCommand({
-      ClientId: import.meta.env.VITE_COGNITO_APP_CLIENT_ID,
-      Username: email,
-      ConfirmationCode: code,
-      Password: newPassword,
-    });
-
     try {
-      await client.send(command);
+      await confirmPasswordReset(email, code, newPassword);
       setStatus('Success');
       alert("Password reset successful. You can now log in with your new password.");
       navigate(`/login?email=${encodeURIComponent(email)}`);

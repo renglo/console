@@ -1,15 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { persistAuthenticationResult } from './authService';
 import { finishAuthenticatedSession } from './authSession';
-import {
-  ACCOUNT_LINK_RETRY_KEY,
-  exchangeAuthorizationCode,
-  maybeRetryLinkedAccount,
-  readOAuthReturn,
-  signInErrorMessage,
-  takePkceVerifier,
-} from './authFederation';
+import { completeRedirect, persistAuthenticationResult } from './authClient';
 import { Button } from '@/components/ui/button';
 
 let exchangeStarted = false;
@@ -23,63 +15,23 @@ export default function AuthCallback() {
     }
     exchangeStarted = true;
 
-    const returned = readOAuthReturn({
-      query: window.location.search,
-      storage: sessionStorage,
-    });
-    if (!returned.ok) {
-      const domain = import.meta.env.VITE_COGNITO_DOMAIN;
-      const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
-      const finishError = () => {
-        exchangeStarted = false;
-        setError(signInErrorMessage(returned.error));
-      };
-      if (!domain || !clientId) {
-        finishError();
-        return;
-      }
-      void maybeRetryLinkedAccount({
-        error: returned.error,
-        storage: sessionStorage,
-        search: window.location.search,
-        domain,
-        clientId,
-        redirectUri: `${window.location.origin}/callback`,
-      }).then((retryUrl) => {
-        if (retryUrl) {
-          window.location.replace(retryUrl);
+    completeRedirect()
+      .then(async (result) => {
+        if (result.kind === 'pending') {
           return;
         }
-        finishError();
-      });
-      return;
-    }
-
-    const verifier = takePkceVerifier(sessionStorage);
-    const domain = import.meta.env.VITE_COGNITO_DOMAIN;
-    const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
-    if (!verifier || !domain || !clientId) {
-      exchangeStarted = false;
-      setError('Sign-in could not be verified.');
-      return;
-    }
-
-    exchangeAuthorizationCode({
-      domain,
-      clientId,
-      redirectUri: `${window.location.origin}/callback`,
-      code: returned.code,
-      verifier,
-    })
-      .then(async (tokens) => {
-        sessionStorage.removeItem(ACCOUNT_LINK_RETRY_KEY);
-        persistAuthenticationResult(tokens);
-        await finishAuthenticatedSession(tokens);
+        if (result.kind === 'error') {
+          exchangeStarted = false;
+          setError(result.message);
+          return;
+        }
+        persistAuthenticationResult(result.tokens);
+        await finishAuthenticatedSession(result.tokens);
       })
       .catch((err: unknown) => {
         exchangeStarted = false;
         const message = err instanceof Error ? err.message : 'Sign-in failed';
-        setError(signInErrorMessage(message));
+        setError(message);
       });
   }, []);
 

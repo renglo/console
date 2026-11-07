@@ -7,13 +7,24 @@ import {
   RespondToAuthChallengeCommand,
   SignUpCommand,
   ConfirmSignUpCommand,
+  ForgotPasswordCommand,
+  ConfirmForgotPasswordCommand,
   AuthFlowType,
   ChallengeNameType,
 } from "@aws-sdk/client-cognito-identity-provider";
 
-export const cognitoClient = new CognitoIdentityProviderClient({
-  region: import.meta.env.VITE_COGNITO_REGION,
-});
+let cognitoClient: CognitoIdentityProviderClient | undefined;
+
+function cognito(): CognitoIdentityProviderClient {
+  if (!cognitoClient) {
+    const region = String(import.meta.env.VITE_COGNITO_REGION || "").trim();
+    if (!region) {
+      throw new Error("VITE_COGNITO_REGION is not configured");
+    }
+    cognitoClient = new CognitoIdentityProviderClient({ region });
+  }
+  return cognitoClient;
+}
 
 export type NewPasswordChallenge = {
   kind: "new_password_required";
@@ -66,7 +77,7 @@ export const signIn = async (
   };
 
   const command = new InitiateAuthCommand(params);
-  const response = await cognitoClient.send(command);
+  const response = await cognito().send(command);
 
   if (response.AuthenticationResult) {
     persistAuthenticationResult(response.AuthenticationResult);
@@ -117,7 +128,7 @@ export const completeNewPasswordChallenge = async (
     ChallengeResponses: challengeResponses,
   });
 
-  const response = await cognitoClient.send(command);
+  const response = await cognito().send(command);
 
   if (!response.AuthenticationResult) {
     throw new Error("Failed to set a new password.");
@@ -141,7 +152,7 @@ export const signUpX = async (email: string, password: string) => {
   };
   try {
     const command = new SignUpCommand(params);
-    const response = await cognitoClient.send(command);
+    const response = await cognito().send(command);
     console.log("Sign up success: ", response);
     return response;
   } catch (error) {
@@ -172,13 +183,35 @@ export const signUp = async (email: string, password: string, givenName: string,
   };
   try {
     const command = new SignUpCommand(params);
-    const response = await cognitoClient.send(command);
+    const response = await cognito().send(command);
     console.log("Sign up success: ", response);
     return response;
   } catch (error) {
     console.error("Error signing up: ", error);
     throw error;
   }
+};
+
+export const requestPasswordReset = async (username: string) => {
+  const command = new ForgotPasswordCommand({
+    ClientId: import.meta.env.VITE_COGNITO_APP_CLIENT_ID,
+    Username: username,
+  });
+  await cognito().send(command);
+};
+
+export const confirmPasswordReset = async (
+  username: string,
+  code: string,
+  password: string,
+) => {
+  const command = new ConfirmForgotPasswordCommand({
+    ClientId: import.meta.env.VITE_COGNITO_APP_CLIENT_ID,
+    Username: username,
+    ConfirmationCode: code,
+    Password: password,
+  });
+  await cognito().send(command);
 };
 
 export const confirmSignUp = async (username: string, code: string) => {
@@ -189,7 +222,7 @@ export const confirmSignUp = async (username: string, code: string) => {
   };
   try {
     const command = new ConfirmSignUpCommand(params);
-    await cognitoClient.send(command);
+    await cognito().send(command);
     console.log("User confirmed successfully");
     return true;
   } catch (error) {

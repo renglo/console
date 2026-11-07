@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { useNavigate } from 'react-router-dom';
 
 import { useState } from 'react';
-import { signUp } from './authService';
+import { signUp } from './authClient';
 import { wlLogoUrl } from '@/lib/branding';
 
 
@@ -24,8 +24,6 @@ export default function AuthRegister() {
   const [password, setPassword] = useState('');
   const [givenName, setGivenName] = useState('');
   const [familyName, setFamilyName] = useState('');
-
-
 
   const handleSignUp = async (e: { preventDefault: () => void; }) => {
     e.preventDefault();

@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label"
 import { useNavigate } from 'react-router-dom';
 
 import { useState } from 'react';
-import { confirmSignUp } from "@/components/console/authService";
+import { confirmSignUp } from '@/components/console/authClient';
 import { wlLogoUrl } from '@/lib/branding';
 
 
@@ -28,7 +28,6 @@ export default function AuthConfirm() {
 
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

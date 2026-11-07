@@ -19,15 +19,19 @@ import { Label } from "@/components/ui/label"
 import { useLocation } from 'react-router-dom';
 
 import { useEffect, useState, FormEvent, useMemo } from 'react';
-import { completeNewPasswordChallenge, signIn } from './authService';
+import {
+  completeNewPasswordChallenge,
+  loginSurface,
+  resolveLoginProviders,
+  signIn,
+  startFederatedSignIn,
+} from './authClient';
 import { finishAuthenticatedSession } from './authSession';
 import { inviteEmailSubjectHint, locales, wlLogoUrl } from '@/lib/branding';
 import referenceDocument from '@/auth/reference-providers.json';
 import {
-  beginFederatedSignIn,
   externalProviders,
   INVITE_STORAGE_KEY,
-  providersForLogin,
   type AuthProvider,
 } from './authFederation';
 
@@ -99,10 +103,9 @@ export default function AuthInvite() {
         apiProviders = null;
       }
       if (!cancelled) {
-        setProviders(providersForLogin(apiProviders, {
-          devFallback,
-          reference: referenceProviders,
-        }));
+        setProviders(
+          resolveLoginProviders(apiProviders, devFallback, referenceProviders),
+        );
       }
     })();
     return () => {
@@ -110,30 +113,16 @@ export default function AuthInvite() {
     };
   }, [isPasswordSetup]);
 
-  const federated = providers ? externalProviders(providers) : [];
+  const surface = loginSurface();
+  const federated = surface.federated && providers ? externalProviders(providers) : [];
 
   const handleProvider = async (provider: AuthProvider) => {
     setWarning('');
     if (linkCode) {
       sessionStorage.setItem(INVITE_STORAGE_KEY, linkCode);
     }
-    const domain = import.meta.env.VITE_COGNITO_DOMAIN;
-    const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
-    if (!domain || !clientId) {
-      setWarning('Sign-in is not configured for this environment.');
-      return;
-    }
     try {
-      const url = await beginFederatedSignIn({
-        provider,
-        search: location.search,
-        storage: sessionStorage,
-        domain,
-        clientId,
-        redirectUri: `${window.location.origin}/callback`,
-        loginHint: email.trim(),
-      });
-      window.location.assign(url);
+      await startFederatedSignIn(provider, location.search, email.trim());
     } catch (error) {
       setWarning(error instanceof Error ? error.message : 'Sign-in failed');
     }
@@ -201,6 +190,10 @@ export default function AuthInvite() {
 
     try {
       const signInResult = await signIn(email, tempPassword);
+
+      if (signInResult.kind === 'redirect') {
+        return;
+      }
 
       if (signInResult.kind !== 'new_password_required') {
         setWarning('This account is already set up. Sign in instead.');

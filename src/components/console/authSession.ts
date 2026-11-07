@@ -24,6 +24,19 @@ export function getAccessTokenClaims(): Record<string, string> {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+export function sessionUsername(claims: Record<string, string | undefined> | null | undefined): string {
+  const token = claims || {};
+  return (
+    token.username
+    || token['cognito:username']
+    || token.preferred_username
+    || token.email
+    || token['signInNames.emailAddress']
+    || token.oid
+    || ''
+  );
+}
+
 function getHandle(input: string): string {
   return CryptoJS.MD5(input).toString().substring(0, 9);
 }
@@ -46,7 +59,7 @@ export async function finishAuthenticatedSession(
 
   const accessToken = parseJwt(sessionStorage.accessToken.toString());
   const idToken = parseJwt(sessionStorage.idToken.toString());
-  const handle = getHandle(accessToken.username);
+  const handle = getHandle(sessionUsername(accessToken) || sessionUsername(idToken));
   sessionStorage.setItem('token_exp', idToken.exp);
   sessionStorage.setItem('cu_handle', handle);
   sessionStorage.setItem('cu_email', idToken.email || profile.email || '');

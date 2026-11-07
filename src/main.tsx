@@ -12,6 +12,7 @@ import ErrorPage from './error-page.tsx'
 
 import {GlobalProvider} from "@/components/console/global-context"
 import AuthLogin from "@/components/console/authLogin"
+import { HostedAccountGate } from "@/components/console/authGate"
 import AuthCallback from "@/components/console/authCallback"
 import AuthRegister from '@/components/console/authRegister';
 import AuthConfirm from "@/components/console/authConfirm"
@@ -71,10 +72,10 @@ createRoot(document.getElementById('root')!).render(
           </Route>
           <Route path="/login" element={<AuthLogin />} />
           <Route path="/callback" element={<AuthCallback />} />
-          <Route path="/register" element={<AuthRegister />} />
-          <Route path="/confirm" element={<AuthConfirm />} />
-          <Route path="/forgot" element={<ForgotPassword />} />
-          <Route path="/reset" element={<ResetPassword />} />
+          <Route path="/register" element={<HostedAccountGate><AuthRegister /></HostedAccountGate>} />
+          <Route path="/confirm" element={<HostedAccountGate><AuthConfirm /></HostedAccountGate>} />
+          <Route path="/forgot" element={<HostedAccountGate><ForgotPassword /></HostedAccountGate>} />
+          <Route path="/reset" element={<HostedAccountGate><ResetPassword /></HostedAccountGate>} />
           <Route path="/invite" element={<AuthInvite />} />
           <Route path="/landing" element={<Landing />} />
           <Route path="/token" element={<Token />} />

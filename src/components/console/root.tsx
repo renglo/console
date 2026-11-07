@@ -1,10 +1,6 @@
 import { Outlet } from "react-router-dom";
-import {
-  AUTH_PROVIDER_STORAGE_KEY,
-  NATIVE_PROVIDER,
-  buildLogoutUrl,
-  clearAuthSession,
-} from "@/components/console/authFederation";
+import { clearAuthSession } from "@/components/console/authFederation";
+import { signOut } from "@/components/console/authClient";
 import {
   Search,
   Settings,
@@ -89,19 +85,9 @@ export default function Root() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    const provider = sessionStorage.getItem(AUTH_PROVIDER_STORAGE_KEY);
-    const domain = import.meta.env.VITE_COGNITO_DOMAIN;
-    const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
-    clearAuthSession(sessionStorage);
-    if (provider && provider !== NATIVE_PROVIDER && domain && clientId) {
-      window.location.href = buildLogoutUrl({
-        domain,
-        clientId,
-        logoutUri: `${window.location.origin}/login`,
-      });
-      return;
+    if (signOut() === 'local') {
+      navigate('/login');
     }
-    navigate('/login');
   };
 
  

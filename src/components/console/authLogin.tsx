@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
 
-import { signIn } from './authService';
+import { loginSurface, resolveLoginProviders, signIn, startFederatedSignIn } from './authClient';
 import { finishAuthenticatedSession } from './authSession';
 import { captions, wlBackgroundUrl, wlLoginLogoUrl } from '@/lib/branding';
 import referenceDocument from '@/auth/reference-providers.json';
 import {
-  beginFederatedSignIn,
   captureInvite,
   externalProviders,
   notePasswordSignIn,
-  providersForLogin,
   showPasswordForm,
   type AuthProvider,
 } from './authFederation';
@@ -60,10 +58,9 @@ export default function AuthLogin() {
           apiProviders = null;
         }
         if (!cancelled) {
-          setProviders(providersForLogin(apiProviders, {
-            devFallback,
-            reference: referenceProviders,
-          }));
+          setProviders(
+            resolveLoginProviders(apiProviders, devFallback, referenceProviders),
+          );
         }
       })();
       return () => {
@@ -71,15 +68,26 @@ export default function AuthLogin() {
       };
     }, [location.search]);
 
+    const surface = loginSurface();
+
     const handleSignIn = async (e: { preventDefault: () => void; }) => {
         e.preventDefault();
         setError('');
         try {
+          if (!surface.credentials) {
+            await signIn();
+            return;
+          }
+
           if (!email || !password) {
             throw new Error("Email and password must be provided");
           }
 
           const result = await signIn(email, password);
+
+          if (result.kind === 'redirect') {
+            return;
+          }
 
           if (result.kind === 'new_password_required') {
             navigate(`/invite?setup=admin&email=${encodeURIComponent(email)}`, {
@@ -97,22 +105,8 @@ export default function AuthLogin() {
 
     const handleProvider = async (provider: AuthProvider) => {
       setError('');
-      const domain = import.meta.env.VITE_COGNITO_DOMAIN;
-      const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
-      if (!domain || !clientId) {
-        setError('Sign-in is not configured for this environment.');
-        return;
-      }
       try {
-        const url = await beginFederatedSignIn({
-          provider,
-          search: location.search,
-          storage: sessionStorage,
-          domain,
-          clientId,
-          redirectUri: `${window.location.origin}/callback`,
-        });
-        window.location.assign(url);
+        await startFederatedSignIn(provider, location.search);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Sign-in failed';
         setError(message);
@@ -121,8 +115,9 @@ export default function AuthLogin() {
 
     const backgroundUrl = wlBackgroundUrl();
     const logoUrl = wlLoginLogoUrl();
-    const federated = externalProviders(providers);
-    const passwordEnabled = showPasswordForm(providers);
+    const federated = surface.federated ? externalProviders(providers) : [];
+    const passwordEnabled = surface.credentials ? showPasswordForm(providers) : true;
+    const showOrDivider = passwordEnabled && federated.length > 0;
 
     return (
         <div
@@ -146,6 +141,7 @@ export default function AuthLogin() {
               <div className="grid gap-4">
                   {passwordEnabled && (
                   <form onSubmit={handleSignIn} >
+                      {surface.credentials && (
                       <div className="grid gap-2">
                       <Label htmlFor="email">Email</Label>
                       <Input
@@ -157,6 +153,8 @@ export default function AuthLogin() {
                           required
                       />
                       </div>
+                      )}
+                      {surface.credentials && (
                       <div className="grid gap-2">
                       <div className="flex items-center">
                           <Label htmlFor="password">Password</Label>
@@ -176,6 +174,7 @@ export default function AuthLogin() {
                           required 
                       />
                       </div>
+                      )}
                       {error && (
                         <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                           <p>{error}</p>
@@ -191,7 +190,7 @@ export default function AuthLogin() {
                       <p>{error}</p>
                     </div>
                   )}
-                  {federated.length > 0 && passwordEnabled && (
+                  {showOrDivider && (
                     <div className="text-center text-xs uppercase tracking-wide text-muted-foreground">or</div>
                   )}
                   {federated.map((provider) => (

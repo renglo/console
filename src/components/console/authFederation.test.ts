@@ -70,7 +70,7 @@ test('Google and Okta each redirect with their own provider and PKCE', async () 
   const invite = '11111111-1111-4111-8111-111111111111';
   for (const name of ['Google', 'Okta']) {
     const storage = memoryStore();
-    const provider = reference.find((item) => item.cognito_provider_name === name);
+    const provider = reference.find((item) => item.provider_name === name);
     assert.ok(provider);
     const url = await beginFederatedSignIn({
       provider,
@@ -161,7 +161,7 @@ test('a linked account restarts the same provider once', async () => {
 
 test('a fresh provider click clears a previous link retry', async () => {
   const storage = memoryStore({ [ACCOUNT_LINK_RETRY_KEY]: '1' });
-  const provider = reference.find((item) => item.cognito_provider_name === 'Google');
+  const provider = reference.find((item) => item.provider_name === 'Google');
   assert.ok(provider);
   await beginFederatedSignIn({
     provider,

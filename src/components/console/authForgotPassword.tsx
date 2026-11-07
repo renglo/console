@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { useNavigate } from 'react-router-dom';
 
 import { useState, FormEvent } from 'react';
-import { CognitoIdentityProviderClient, ForgotPasswordCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { requestPasswordReset } from './authClient';
 import { wlLogoUrl } from '@/lib/branding';
 
 /** Cognito blocks ForgotPassword while the user is in FORCE_CHANGE_PASSWORD. */
@@ -35,17 +35,8 @@ const ForgotPassword = () => {
     e.preventDefault();
     setStatus('');
 
-    const client = new CognitoIdentityProviderClient({
-      region: import.meta.env.VITE_COGNITO_REGION,
-    });
-
-    const command = new ForgotPasswordCommand({
-      ClientId: import.meta.env.VITE_COGNITO_APP_CLIENT_ID,
-      Username: email,
-    });
-
     try {
-      await client.send(command);
+      await requestPasswordReset(email);
       setStatus('Enter code in next page');
       alert("Code sent to your email");
       navigate(`/reset?email=${encodeURIComponent(email)}`);
