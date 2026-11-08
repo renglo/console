@@ -22,6 +22,8 @@ import { parseJwt, sessionUsername } from './authSession';
 
 const ENTRA_VERIFIER_KEY = 'renglo_entra_verifier';
 const ENTRA_OIDC_CACHE_KEY = 'renglo_entra_oidc';
+/** Set by sign-out. The next authorize request must collect the account again. */
+const ENTRA_ACCOUNT_PROMPT_KEY = 'renglo_entra_account_prompt';
 
 type OidcDocument = {
   authorization_endpoint: string;
@@ -167,6 +169,11 @@ export async function signIn(options?: EntraSignInOptions): Promise<{ kind: 'red
   if (loginHint) {
     params.set('login_hint', loginHint);
   }
+  const accountPrompt = sessionStorage.getItem(ENTRA_ACCOUNT_PROMPT_KEY);
+  if (accountPrompt) {
+    params.set('prompt', accountPrompt);
+    sessionStorage.removeItem(ENTRA_ACCOUNT_PROMPT_KEY);
+  }
   sessionStorage.setItem('renglo_oauth_nonce', nonce);
   window.location.assign(`${authority}/oauth2/v2.0/authorize?${params.toString()}`);
   return { kind: 'redirect' };
@@ -253,12 +260,18 @@ export function signOut(): void {
   if (!authorityBase && tenant) {
     authorityBase = `https://${tenant}.ciamlogin.com/${tenant}`;
   }
+  const idToken = sessionStorage.getItem('idToken') || '';
   clearAuthSession(sessionStorage);
+  // External ID ignores select_account and reuses the browser session.
+  sessionStorage.setItem(ENTRA_ACCOUNT_PROMPT_KEY, 'login');
   const params = new URLSearchParams({
     post_logout_redirect_uri: `${window.location.origin}/login`,
   });
   if (clientId) {
     params.set('client_id', clientId);
+  }
+  if (idToken) {
+    params.set('id_token_hint', idToken);
   }
   const logoutTarget = endSession || (authorityBase ? `${authorityBase}/oauth2/v2.0/logout` : '');
   if (logoutTarget) {

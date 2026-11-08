@@ -1,5 +1,4 @@
 import { Outlet } from "react-router-dom";
-import { clearAuthSession } from "@/components/console/authFederation";
 import { signOut } from "@/components/console/authClient";
 import {
   Search,
@@ -72,8 +71,9 @@ export default function Root() {
   
   if (tree?.error) {
     console.log('Token Expired...');
-    clearAuthSession(sessionStorage);
-    window.location.href = `/login`;
+    if (signOut() === 'local') {
+      window.location.href = `/login`;
+    }
   }
 
   console.log('GlobalContext tree')
